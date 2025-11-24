@@ -2,22 +2,8 @@ import pandas as pd
 import requests
 import time
 from bs4 import BeautifulSoup
+from utils import load_data
 
-
-def load_data(file_path):
-	column_headers = ['CIK', 'Name', 'CRD', 'Address', 'Address2', 'City', 'State', 'zip', 'na']
-	df = pd.read_csv(
-		file_path,
-		sep='\t',           
-		header=None,       
-		names=column_headers,
-		encoding='utf-16',
-		dtype={'CIK': str, 'CRD': str}
-		)
-	return df
-
-
-df = load_data('bd100125.txt')
 
 headers = {
     "User-Agent": "BrokerDealerList xchencws@gmail.com" 
@@ -124,7 +110,8 @@ def get_form_info(acc, CIK):
 		# print(f"Failed to access: {response.status_code}, url: {url}")
 		return None
 
-bd_df = load_data('bd100125.txt')
+
+bd_df = load_data('./files/bd100125.txt')
 cik_list = bd_df['CIK'].to_list()
 accession_dict = []
 form_info_list = []
