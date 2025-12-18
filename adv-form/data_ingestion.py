@@ -1,13 +1,18 @@
+import os
 import dlt
 import requests
 import zipfile
 import io
 import pandas as pd
 from typing import Iterator
+from dotenv import load_dotenv
 
 from util import generate_months
 from util import filing_dates
 from util import build_url
+
+load_dotenv()
+
 
 def generate_csv_table(year: int, month: int):
     yyyyMMdd = filing_dates(year, month)
@@ -82,9 +87,12 @@ def adv_filing_source(url: str, year: int, month: int):
             csv_name=csv_name,
         ) -> Iterator[dict]:
             with zip_file.open(csv_name) as f:
-                df = pd.read_csv(f)
-                for row in df.to_dict(orient="records"):
-                    yield row
+                df = pd.read_csv(f, encoding='utf-8', encoding_errors='replace', low_memory=False)
+                for col in df.select_dtypes(include=['object']).columns:
+                    df[col] = df[col].astype(str).apply(
+                        lambda x: x.encode('utf-8', 'ignore').decode('utf-8')
+                    )
+                    yield from df.to_dict(orient="records")
 
         resources.append(csv_resource)
 
@@ -92,7 +100,7 @@ def adv_filing_source(url: str, year: int, month: int):
 
 def backfill():
     pipeline = dlt.pipeline(
-        pipeline_name="adv_filing",
+        pipeline_name="adv_filings1",
         destination="postgres",
         dataset_name="sec_adv",
     )
@@ -101,11 +109,12 @@ def backfill():
         url = build_url(year, month)
         print(f"Loading {url}")
         try:
-            pipeline.run(
+            info = pipeline.run(
                 adv_filing_source(url, year, month),
                 loader_file_format="csv",
                 write_disposition="replace"
             )
+            print(info)
         except requests.exceptions.HTTPError:
             print(f"Data or {year}-{month:02d} not found")
 

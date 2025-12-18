@@ -2,4 +2,4 @@ pandas
 requests
 dlt[postgres]
 python-dateutil
-
+python-dotenv
