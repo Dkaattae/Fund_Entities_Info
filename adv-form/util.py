@@ -17,7 +17,7 @@ def generate_months(start_months_ago=12, end_months_ago=1, current_year_month=No
         months.append((current.year, current.month))
         current += relativedelta(months=1)
 
-    return reversed(months)
+    return months
 
 def filing_dates(year, month):
     last_day = calendar.monthrange(year, month)[1]

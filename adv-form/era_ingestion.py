@@ -18,45 +18,45 @@ def generate_csv_table(year: int, month: int):
     yyyyMMdd = filing_dates(year, month)
     yyyyMM = yyyyMMdd[:-2]
     CSV_TABLES = {
-        f"IA_Schedule_A_B_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_A_B_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Filings",
             "primary_key": "FilingID",
         },
-        f"IA_Schedule_D_7B1_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Funds",
             "primary_key": ["FilingID", "Fund ID", "ReferenceID"]
         },
-        f"IA_Schedule_D_7B1A6b_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A6b_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Advisor_Fund_Relationships",
-            "primary_key": ["FilingID", "ReferenceID"]
+            "primary_key": ["FilingID", "ReferenceID", "FundID"]
         },
-        f"IA_Schedule_D_7A_CIK_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7A_CIK_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "CIKMap",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "CIK"],
         },
-        f"IA_Schedule_D_7B1A22_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A22_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "FormDNum",
             "primary_key": ["FilingID", "ReferenceID"],
         },
-        f"IA_Schedule_D_7B1A23_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A23_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Auditors",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "PCAOB Number"],
         },
-        f"IA_Schedule_D_7B1A24_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A24_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Primary_Brokers",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "SEC Number"],
         },
-        f"IA_Schedule_D_7B1A25_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A25_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Custodians",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "SEC Number"],
         },
-        f"IA_Schedule_D_7B1A26_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A26_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "FundAdmins",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "Name of Administrator"],
         },
-        f"IA_Schedule_D_7B1A28_{yyyyMM}01_{yyyyMMdd}.csv": {
+        f"ERA_Schedule_D_7B1A28_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Marketers",
-            "primary_key": ["FilingID", "ReferenceID"],
+            "primary_key": ["FilingID", "ReferenceID", "SEC Number"],
         },
     }
     return CSV_TABLES
@@ -87,11 +87,21 @@ def adv_filing_source(url: str, year: int, month: int):
             csv_name=csv_name,
         ) -> Iterator[dict]:
             with zip_file.open(csv_name) as f:
-                df = pd.read_csv(f, encoding='utf-8', encoding_errors='replace', low_memory=False)
+                df = pd.read_csv(f, 
+                    encoding='utf-8', 
+                    encoding_errors='replace', 
+                    low_memory=False,
+                    on_bad_lines='skip',
+                    engine='c')
                 for col in df.select_dtypes(include=['object']).columns:
                     df[col] = df[col].astype(str).apply(
                         lambda x: x.encode('utf-8', 'ignore').decode('utf-8')
                     )
+                    numeric_cols = df.select_dtypes(include=['number']).columns
+                    object_cols = df.select_dtypes(include=['object']).columns
+                    df[numeric_cols] = df[numeric_cols].fillna(-1)
+                    df[object_cols] = df[object_cols].fillna("None")
+                    df['filing_month'] = f"{year}{month:02d}"
                     yield from df.to_dict(orient="records")
 
         resources.append(csv_resource)
@@ -100,9 +110,9 @@ def adv_filing_source(url: str, year: int, month: int):
 
 def backfill():
     pipeline = dlt.pipeline(
-        pipeline_name="adv_filings1",
+        pipeline_name="adv_era_filings",
         destination="postgres",
-        dataset_name="sec_adv",
+        dataset_name="era_adv",
     )
 
     for (year, month) in generate_months(12, 1):
@@ -112,7 +122,7 @@ def backfill():
             info = pipeline.run(
                 adv_filing_source(url, year, month),
                 loader_file_format="csv",
-                write_disposition="replace"
+                write_disposition="merge"
             )
             print(info)
         except requests.exceptions.HTTPError:
