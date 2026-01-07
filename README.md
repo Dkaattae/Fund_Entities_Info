@@ -17,3 +17,5 @@ part 1.
 link: f"https://reports.adviserinfo.sec.gov/reports/foia/advFilingData/2025/ADV_Filing_Data_{yyyyMM}01_{yyyyMMdd}.zip"
 yyyyMMdd is the last day of the month. 
 
+# Attorneys
+scraping from bestlawyers.com
