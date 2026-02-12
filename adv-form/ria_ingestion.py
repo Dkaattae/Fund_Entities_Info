@@ -18,9 +18,29 @@ def generate_csv_table(year: int, month: int):
     yyyyMMdd = filing_dates(year, month)
     yyyyMM = yyyyMMdd[:-2]
     CSV_TABLES = {
-        f"IA_Schedule_A_B_{yyyyMM}01_{yyyyMMdd}.csv": {
-            "table": "Filings",
+        f"ADV_Filing_Types_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "FilingTypes",
             "primary_key": "FilingID",
+        },
+        f"IA_ADV_Base_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "Base",
+            "primary_key": ["FilingID", "DateSubmitted"]
+        },
+        f"IA_Schedule_A_B_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "Ownership",
+            "primary_key": "FilingID",
+        },
+        f"IA_Schedule_D_1F_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "Address",
+            "primary_key": "FilingID"
+        },
+        f"IA_Schedule_D_1I_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "Website",
+            "primary_key": "FilingID"
+        },
+        f"IA_Schedule_D_7A_{yyyyMM}01_{yyyyMMdd}.csv": {
+            "table": "Affiliations",
+            "primary_key": ["FilingID", "ReferenceID"]
         },
         f"IA_Schedule_D_7B1_{yyyyMM}01_{yyyyMMdd}.csv": {
             "table": "Funds",
@@ -96,6 +116,7 @@ def adv_filing_source(url: str, year: int, month: int):
                     object_cols = df.select_dtypes(include=['object']).columns
                     df[numeric_cols] = df[numeric_cols].fillna(-1)
                     df[object_cols] = df[object_cols].fillna("None")
+                    df = df.copy()
                     df['filing_month'] = f"{year}{month:02d}"
                     yield from df.to_dict(orient="records")
 
