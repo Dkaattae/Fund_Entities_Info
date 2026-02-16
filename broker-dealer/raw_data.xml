@@ -1,0 +1,262 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0708</schemaVersion>
+
+    <submissionType>D</submissionType>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <primaryIssuer>
+        <cik>0001348362</cik>
+        <entityName>Lexaria Bioscience Corp.</entityName>
+        <issuerAddress>
+            <street1>100 - 740 MCCURDY ROAD</street1>
+            <city>KELOWNA</city>
+            <stateOrCountry>A1</stateOrCountry>
+            <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+            <zipCode>V1X 2P7</zipCode>
+        </issuerAddress>
+        <issuerPhoneNumber>250-765-6424</issuerPhoneNumber>
+        <jurisdictionOfInc>NEVADA</jurisdictionOfInc>
+        <edgarPreviousNameList>
+            <previousName>LEXARIA CORP.</previousName>
+            <previousName>Lexaria Corp.</previousName>
+        </edgarPreviousNameList>
+        <entityType>Corporation</entityType>
+        <yearOfInc>
+            <overFiveYears>true</overFiveYears>
+        </yearOfInc>
+    </primaryIssuer>
+
+    <relatedPersonsList>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Christopher</firstName>
+                <lastName>Bunka</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>John</firstName>
+                <lastName>Docherty</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Richard</firstName>
+                <lastName>Christopher</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Michael</firstName>
+                <lastName>Shankman</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Executive Officer</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Nicholas</firstName>
+                <lastName>Baxter</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>William</firstName>
+                <middleName>Edward</middleName>
+                <lastName>McKechnie</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Albert</firstName>
+                <lastName>Reese</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+        <relatedPersonInfo>
+            <relatedPersonName>
+                <firstName>Bal</firstName>
+                <lastName>Bhullar</lastName>
+            </relatedPersonName>
+            <relatedPersonAddress>
+                <street1>100 - 740 McCurdy Road</street1>
+                <city>Kelowna</city>
+                <stateOrCountry>A1</stateOrCountry>
+                <stateOrCountryDescription>BRITISH COLUMBIA, CANADA</stateOrCountryDescription>
+                <zipCode>V1X 2P7</zipCode>
+            </relatedPersonAddress>
+            <relatedPersonRelationshipList>
+                <relationship>Director</relationship>
+            </relatedPersonRelationshipList>
+            <relationshipClarification></relationshipClarification>
+        </relatedPersonInfo>
+    </relatedPersonsList>
+
+    <offeringData>
+        <industryGroup>
+            <industryGroupType>Biotechnology</industryGroupType>
+        </industryGroup>
+        <issuerSize>
+            <revenueRange>$5,000,001 - $25,000,000</revenueRange>
+        </issuerSize>
+        <federalExemptionsExclusions>
+            <item>06b</item>
+        </federalExemptionsExclusions>
+        <typeOfFiling>
+            <newOrAmendment>
+                <isAmendment>false</isAmendment>
+            </newOrAmendment>
+            <dateOfFirstSale>
+                <value>2025-09-29</value>
+            </dateOfFirstSale>
+        </typeOfFiling>
+        <durationOfOffering>
+            <moreThanOneYear>false</moreThanOneYear>
+        </durationOfOffering>
+        <typesOfSecuritiesOffered>
+            <isOptionToAcquireType>true</isOptionToAcquireType>
+        </typesOfSecuritiesOffered>
+        <businessCombinationTransaction>
+            <isBusinessCombinationTransaction>false</isBusinessCombinationTransaction>
+            <clarificationOfResponse></clarificationOfResponse>
+        </businessCombinationTransaction>
+        <minimumInvestmentAccepted>0</minimumInvestmentAccepted>
+        <salesCompensationList>
+            <recipient>
+                <recipientName>H.C. WAINWRIGHT &amp; CO.</recipientName>
+                <recipientCRDNumber>375</recipientCRDNumber>
+                <associatedBDName>None</associatedBDName>
+                <associatedBDCRDNumber>None</associatedBDCRDNumber>
+                <recipientAddress>
+                    <street1>420 Park Avenue</street1>
+                    <street2>4th Floor</street2>
+                    <city>New York</city>
+                    <stateOrCountry>NY</stateOrCountry>
+                    <stateOrCountryDescription>NEW YORK</stateOrCountryDescription>
+                    <zipCode>10022</zipCode>
+                </recipientAddress>
+                <statesOfSolicitationList>
+                    <state>IL</state>
+                    <description>ILLINOIS</description>
+                    <state>NY</state>
+                    <description>NEW YORK</description>
+                </statesOfSolicitationList>
+                <foreignSolicitation>true</foreignSolicitation>
+            </recipient>
+        </salesCompensationList>
+        <offeringSalesAmounts>
+            <totalOfferingAmount>4000000</totalOfferingAmount>
+            <totalAmountSold>4000000</totalAmountSold>
+            <totalRemaining>0</totalRemaining>
+            <clarificationOfResponse></clarificationOfResponse>
+        </offeringSalesAmounts>
+        <investors>
+            <hasNonAccreditedInvestors>false</hasNonAccreditedInvestors>
+            <totalNumberAlreadyInvested>5</totalNumberAlreadyInvested>
+        </investors>
+        <salesCommissionsFindersFees>
+            <salesCommissions>
+                <dollarAmount>280000</dollarAmount>
+            </salesCommissions>
+            <findersFees>
+                <dollarAmount>0</dollarAmount>
+            </findersFees>
+            <clarificationOfResponse>Commission represents 7% of the offering amount, including for the registered shares that form part of the combined offering of 1 registered share and 1 unregistered warrant</clarificationOfResponse>
+        </salesCommissionsFindersFees>
+        <useOfProceeds>
+            <grossProceedsUsed>
+                <dollarAmount>0</dollarAmount>
+            </grossProceedsUsed>
+            <clarificationOfResponse></clarificationOfResponse>
+        </useOfProceeds>
+        <signatureBlock>
+            <authorizedRepresentative>false</authorizedRepresentative>
+            <signature>
+                <issuerName>Lexaria Bioscience Corp.</issuerName>
+                <signatureName>/Richard Christopher/</signatureName>
+                <nameOfSigner>Richard Christopher</nameOfSigner>
+                <signatureTitle>CEO</signatureTitle>
+                <signatureDate>2025-10-01</signatureDate>
+            </signature>
+        </signatureBlock>
+    </offeringData>
+</edgarSubmission>
