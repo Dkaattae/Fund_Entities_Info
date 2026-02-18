@@ -38,10 +38,18 @@ def extract_form_d_leads(xml_content):
     tree = etree.fromstring(xml_content)
     
     # 1. Get Firm-wide Contact Info
+    date_filed = tree.xpath('//signatureDate/text()')[0]
     firm_name = tree.xpath('//primaryIssuer/entityName/text()')[0]
     cik = tree.xpath('//primaryIssuer/cik/text()')[0]
+    date_val = tree.xpath('//dateOfFirstSale/value/text()')
+    date_first_sale = date_val[0] if date_val else None
+    investment_type = tree.xpath(".//investmentFundInfo/investmentFundType/text()")
+    investment_type = investment_type[0] if investment_type else "N/A"
+    is_equity = tree.xpath(".//typesOfSecuritiesOffered/isEquityType/text()")
+    is_equity = is_equity[0] if is_equity else "false"
     phone = tree.xpath('//primaryIssuer/issuerPhoneNumber/text()')[0]
     money = tree.xpath('//offeringSalesAmounts/totalAmountSold/text()')[0]
+    remaining_amt = tree.xpath("//offeringSalesAmounts/totalRemaining/text()")[0]
 
     # 2. Get the "Related Persons" (Owners/Decision Makers)
     # This often returns a list if there are multiple owners

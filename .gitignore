@@ -209,3 +209,6 @@ __marimo__/
 
 #dlt
 adv-form/.dlt/
+
+# files
+broker-dealer/files/*.txt
