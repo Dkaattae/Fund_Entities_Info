@@ -1,0 +1,105 @@
+domain_model: ADV_FormD_Regulatory_Intelligence
+version: 0.2
+
+description: >
+  Stable regulatory domain model with identity resolution for service providers.
+  Event-based and time-aware modeling. No business thresholds included.
+
+entities:
+
+  Adviser:
+    primary_key: adviser_id
+    attributes:
+      - cik
+      - legal_name
+      - incorporation_date
+    time_dimensions:
+      - existence_start_date
+      - existence_end_date
+
+  Fund:
+    primary_key: fund_id
+    attributes:
+      - fund_name
+      - domicile_country
+      - formation_date
+    time_dimensions:
+      - formation_date
+      - termination_date
+
+  Filing:
+    primary_key: filing_id
+    attributes:
+      - filing_type
+      - filing_date
+      - amendment_flag
+
+  Offering:
+    primary_key: offering_id
+    attributes:
+      - first_sale_date
+      - total_amount_sold
+    time_dimensions:
+      - first_sale_date
+      - closing_date
+
+  ServiceProvider:
+    primary_key: service_provider_id
+    attributes:
+      - canonical_name
+      - provider_type
+      - pcaob_number (nullable)
+      - normalization_status
+
+  ServiceProviderAlias:
+    description: >
+      Mapping from raw SEC text to canonical service provider entity.
+    attributes:
+      - raw_name
+      - service_provider_id
+      - match_confidence
+      - matching_method
+
+  RegistrationStatus:
+    primary_key: registration_event_id
+    attributes:
+      - registration_type
+      - effective_date
+      - termination_date
+
+relationships:
+
+  - name: ADVISER_FILES_FILING
+    from: Adviser
+    to: Filing
+    time_reference: filing_date
+
+  - name: ADVISER_MANAGES_FUND
+    from: Adviser
+    to: Fund
+    time_reference: formation_date
+
+  - name: FUND_HAS_OFFERING
+    from: Fund
+    to: Offering
+    time_reference: first_sale_date
+
+  - name: FUND_USES_SERVICE_PROVIDER
+    from: Fund
+    to: ServiceProvider
+    attributes:
+      - relationship_start_date
+      - relationship_end_date
+    time_reference: relationship_start_date
+
+  - name: ADVISER_HAS_REGISTRATION_STATUS
+    from: Adviser
+    to: RegistrationStatus
+    time_reference: effective_date
+
+time_rules:
+
+  - All stateful properties must be modeled as historical records.
+  - Current state must be derivable from historical records.
+  - Raw text identifiers must never be overwritten.
+  - Canonical identity resolution must be separated from raw ingestion.
