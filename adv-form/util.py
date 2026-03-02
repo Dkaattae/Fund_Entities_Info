@@ -1,6 +1,7 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
 import calendar
+import re
 
 def generate_months(start_months_ago=12, end_months_ago=1, current_year_month=None):
     
@@ -37,8 +38,15 @@ def build_url(year, month):
         f"ADV_Filing_Data_{yyyyMM}01_{yyyyMMdd}.zip"
     )
 
+def clean_string(text):
+    if not isinstance(text, str):
+        return text
+    return re.sub(r'[^a-zA-Z0-9\.\/:\-\ ]', '', text).strip()
+
 if __name__ == "__main__":
-    url = build_url(2025, 10)
+    # url = build_url(2025, 10)
     # print(url)
-    months = generate_months(12, 1, (2025,11))
+    # months = generate_months(12, 1, (2025,11))
     # print(months)
+    text = "http://www.startingline.vc, @StartingLineVC, (123) 456-7890"
+    # print(clean_string(text))
