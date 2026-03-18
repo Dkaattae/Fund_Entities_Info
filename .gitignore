@@ -212,3 +212,4 @@ adv-form/.dlt/
 
 # files
 broker-dealer/files/*.txt
+form-d/parsed_parquet/*.parquet
