@@ -35,10 +35,12 @@ class BigQueryHandler:
         MERGE `{self.project}.{self.dataset}.{target_table}` T
         USING `{self.project}.{self.dataset}.{staging_table}` S
         ON T.submission_num = S.submission_num
+            and CAST(T.cik AS INT64) = CAST(S.cik AS INT64)
         WHEN MATCHED THEN
           UPDATE SET 
-            T.status = 'PARSED', 
-            T.parsed_date = CURRENT_DATE()
+            T.status = S.status, 
+            T.parsed_at = S.parsed_at,
+            T.error_msg = S.error_msg
         """
         self.client.query(merge_query).result()
         print(f"Successfully merged updates from {staging_table} to {target_table}.")

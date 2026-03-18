@@ -68,6 +68,7 @@ def load_formd_data(year, quarter):
     formd_df = formd_by_quarter(year, quarter)
     formd_df['status'] = 'PENDING'
     formd_df['parsed_at'] = pd.NaT
+    formd_df['error_msg'] = None
     formd_df['submission_num'] = formd_df['Path'].apply(lambda x: x.split('/')[-1].replace('.txt', ''))
     formd_df['accession_clean'] = formd_df['submission_num'].str.replace('-', '')   
 
@@ -83,6 +84,6 @@ def load_formd_data(year, quarter):
 
 
 if __name__ == "__main__":
-    quarter = 1
+    quarter = 4
     year = 2025
     load_formd_data(year, quarter)
