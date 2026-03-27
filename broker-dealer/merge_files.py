@@ -121,7 +121,7 @@ def update_monthly(start_month, start_year):
                 print(f'Error updating master file: {e}')
 
 if __name__ == "__main__":
-    update_monthly(start_month='01', start_year='26')
+    update_monthly(start_month='02', start_year='26')
     df = pd.read_csv('./broker_dealer_master_list.csv', dtype={'CIK': str, 'CRD': str})
     new_df = df[df['start_month'].notna()]
     print(new_df)

@@ -204,4 +204,4 @@ def ingestion_flow(batch_limit=1000, exhaust_all=False):
             break  # Exit after one batch if not exhausting all
 
 if __name__ == "__main__":
-    ingestion_flow()
+    ingestion_flow(batch_limit=5000)
