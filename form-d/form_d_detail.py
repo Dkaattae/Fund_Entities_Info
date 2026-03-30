@@ -21,7 +21,7 @@ if not service_account_json_str:
 
 gcp_credentials = json.loads(service_account_json_str)
 project_id = gcp_credentials.get("project_id")
-dataset = "formd_filings"
+dataset = "formd_filings_crawler"
 bucket_url = os.getenv("BUCKET_URL")
 staging_destination = filesystem(bucket_url=bucket_url, credentials=gcp_credentials)
 

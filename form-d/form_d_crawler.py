@@ -62,7 +62,7 @@ def load_formd_data(year, quarter):
     pipeline = dlt.pipeline(
         pipeline_name="sec_formd_pipeline",
         destination="bigquery",
-        dataset_name="formd_filings"
+        dataset_name="formd_filings_crawler"
     )
 
     formd_df = formd_by_quarter(year, quarter)
