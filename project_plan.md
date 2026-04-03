@@ -15,7 +15,7 @@ layer 3: history
 based on each entity id, get history of events
 layer 4: derived table from history
 current status
-layer 5: defind cohort, policy and business need
+layer 5: define cohort, policy and business need
 like cohort by AUM size, age, type. 
 
 # Knowledge Base

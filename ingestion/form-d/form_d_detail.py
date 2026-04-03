@@ -1,18 +1,13 @@
 import os
 import json
+import traceback
 import pandas as pd
-import requests
 import time
 from datetime import datetime, timezone
-from lxml import etree
 import dlt
 from bq_client import BigQueryHandler
-from dlt.destinations import filesystem
 from prefect import flow, task
-
-headers = {
-    "User-Agent": "BrokerDealerList xchencws@gmail.com" 
-}
+from parse_xml_schema import parse_formd_xml, parse_formd, get_xml_url
 
 service_account_json_str = os.getenv("BIGQUERY_SERVICE_ACCOUNT_JSON")
 
@@ -22,102 +17,42 @@ if not service_account_json_str:
 gcp_credentials = json.loads(service_account_json_str)
 project_id = gcp_credentials.get("project_id")
 dataset = "formd_filings_crawler"
-bucket_url = os.getenv("BUCKET_URL")
-staging_destination = filesystem(bucket_url=bucket_url, credentials=gcp_credentials)
 
 
-def get_xml_url(cik, accession_clean):
-    base_url = "https://www.sec.gov/Archives/"
-    
-    # Path is: edgar/data/{CIK}/{CleanAccession}/primary_doc.xml
-    xml_url = f"{base_url}edgar/data/{cik}/{accession_clean}/primary_doc.xml"
-    
-    return xml_url
-
-def parse_formd(xml_url):
-    response = requests.get(xml_url, headers=headers)
-    if response.status_code == 200:
-        return response.content, response.status_code
-    else:
-        print(f"Failed to access: {response.status_code}, url: {xml_url}")
-        return None, response.status_code
-
-def extract_form_d_leads(xml_content):
-    tree = etree.fromstring(xml_content)
-    
-    # Get Firm-wide Contact Info
-    date_filed = tree.xpath('//signatureDate/text()')[0]
-    firm_name = tree.xpath('//primaryIssuer/entityName/text()')[0]
-    cik = tree.xpath('//primaryIssuer/cik/text()')[0]
-    date_val = tree.xpath('//dateOfFirstSale/value/text()')
-    date_first_sale = date_val[0] if date_val else None
-    investment_type = tree.xpath(".//investmentFundInfo/investmentFundType/text()")
-    investment_type = investment_type[0] if investment_type else "N/A"
-    is_equity = tree.xpath(".//typesOfSecuritiesOffered/isEquityType/text()")
-    is_equity = is_equity[0] if is_equity else "false"
-    phone = tree.xpath('//primaryIssuer/issuerPhoneNumber/text()')[0]
-    money = tree.xpath('//offeringSalesAmounts/totalAmountSold/text()')[0]
-    remaining_amt = tree.xpath("//offeringSalesAmounts/totalRemaining/text()")[0]
-
-    # Get the "Related Persons" (Owners/Decision Makers)
-    # This often returns a list if there are multiple owners
-    owners = []
-    for person in tree.xpath('//relatedPersonInfo'):
-        first = person.xpath('.//firstName/text()')[0]
-        last = person.xpath('.//lastName/text()')[0]
-        title = person.xpath('.//relationship/text()')[0]
-        owners.append({"firstName": first, "lastName": last, "role": title})
-        
-    return {
-        "firm": firm_name,
-        "cik": cik,
-        "date_filed": date_filed,
-        "phone": phone,
-        "owners": owners,
-        "date_first_sale": date_first_sale,
-        "investment_type": investment_type,
-        "is_equity": is_equity,
-        "money_raised": money,
-        "remaining_amount": remaining_amt
-    }
-
-@dlt.resource(
-    table_name="formd_parsed_leads", 
-    write_disposition="merge", 
-    primary_key=["cik", "submission_num"])
 def form_d_resource(pending_df, parsed_ids, failed_ids):
     for idx, row in pending_df.iterrows():
         try:
             xml_url = get_xml_url(row['cik'], row['accession_clean'])
             xml_content, status_code = parse_formd(xml_url)
             if status_code == 200 and xml_content:
-                lead_info = extract_form_d_leads(xml_content)
-                lead_info['submission_num'] = row['submission_num']
-                lead_info['cik'] = row['cik']
-                yield lead_info
+                print('parsing ', row['cik'], row['submission_num'])
+                formd_data = parse_formd_xml(xml_content, row['cik'], row['submission_num'])
+                yield formd_data
                 parsed_ids.append({
-                    "submission_num": row['submission_num'], 
+                    "submission_num": row['submission_num'],
                     "cik": row['cik'],
                     "status": "PARSED",
                     "parsed_at": datetime.now(timezone.utc),
                     "error_msg": None
-                }),
+                })
             if status_code != 200:
                 failed_ids.append({
-                    "submission_num": row['submission_num'], 
-                    "cik": row['cik'], 
+                    "submission_num": row['submission_num'],
+                    "cik": row['cik'],
                     "status": "FAILED",
                     "parsed_at": datetime.now(timezone.utc),
                     "error_msg": f"HTTP {status_code}"
                 })
         except Exception as e:
+            print(f"Error parsing {row['submission_num']}: {e}")
+            traceback.print_exc()
             failed_ids.append({
-                "submission_num": row['submission_num'], 
-                "cik": row['cik'], 
+                "submission_num": row['submission_num'],
+                "cik": row['cik'],
                 "status": "FAILED",
                 "parsed_at": datetime.now(timezone.utc),
                 "error_msg": str(e)})
-        time.sleep(0.2)  # Be polite to the SEC servers
+        time.sleep(0.2)
     print("Completed parsing batch of Form D submissions.")
 
 
@@ -129,7 +64,7 @@ def fetch_pending_submissions(batch_limit):
         print("No pending submissions to parse.")
     return pending_submissions
 
-@task(name="Parse Batch of Submissions", retries=3)
+@task(name="Parse Batch of Submissions")
 def run_daily_parser_pipeline(pending_submissions):
 
     pipeline = dlt.pipeline(
@@ -139,21 +74,78 @@ def run_daily_parser_pipeline(pending_submissions):
         )
     parsed_ids = []
     failed_ids = []
+
+    # Collect all parsed data first, then yield per-table resources
+    all_submissions = []
+    all_issuers = []
+    all_offerings = []
+    all_related_persons = []
+    all_recipients = []
+    all_signatures = []
+
+    for formd_data in form_d_resource(pending_submissions, parsed_ids, failed_ids):
+        all_submissions.append(formd_data["formd_submission"])
+        all_issuers.extend(formd_data["issuer_dict"])
+        all_offerings.extend(formd_data["offering_dict_list"])
+        all_related_persons.extend(formd_data["related_person_dict_list"])
+        all_recipients.extend(formd_data["recipient_dict_list"])
+        all_signatures.extend(formd_data["signature_dict_list"])
+
+    if not all_submissions:
+        print("No data to load.")
+        return parsed_ids, failed_ids
+
     try:
+        resources = [
+            dlt.resource(
+                all_submissions,
+                name="form_d_submission",
+                primary_key=["accessionnumber"],
+                write_disposition="merge",
+                max_table_nesting=0),
+            dlt.resource(
+                all_issuers,
+                name="issuer",
+                primary_key=["accessionnumber", "issuer_seq_key"],
+                write_disposition="merge",
+                max_table_nesting=0),
+            dlt.resource(
+                all_offerings,
+                name="offering",
+                primary_key=["accessionnumber"],
+                write_disposition="merge",
+                max_table_nesting=0),
+            dlt.resource(
+                all_related_persons,
+                name="related_persons",
+                primary_key=["accessionnumber", "relatedperson_seq_key"],
+                write_disposition="merge",
+                max_table_nesting=0) if all_related_persons else None,
+            dlt.resource(
+                all_recipients,
+                name="recipients",
+                primary_key=["accessionnumber", "recipient_seq_key"],
+                write_disposition="merge",
+                max_table_nesting=0) if all_recipients else None,
+            dlt.resource(
+                all_signatures,
+                name="signatures",
+                primary_key=["accessionnumber", "signature_seq_key"],
+                write_disposition="merge",
+                max_table_nesting=0) if all_signatures else None,
+        ]
+        resources = [r for r in resources if r is not None]
+
         load_info = pipeline.run(
-            form_d_resource(pending_submissions, parsed_ids, failed_ids),
-            table_name = "formd_parsed_leads",
-            primary_key = ["cik", "submission_num"],
-            write_disposition = "merge",
+            resources,
             credentials=gcp_credentials
-            )
+        )
         print(load_info)
         print(f"Parsed {len(parsed_ids)} submissions successfully, {len(failed_ids)} failed.")
 
     except Exception as e:
         print(f"Error during pipeline execution: {e}")
-    finally:
-        print("Closing pipeline resources.")
+        traceback.print_exc()
     return parsed_ids, failed_ids
 
 @task(name="Update Submission Statuses")
@@ -162,7 +154,7 @@ def update_submission_statuses(parsed_ids, failed_ids):
     processed_ids = pd.DataFrame(parsed_ids + failed_ids, 
                                     columns=[
                                                 'cik', 
-                                                'submission_number', 
+                                                'submission_num', 
                                                 'status', 
                                                 'parsed_at', 
                                                 'error_msg'
@@ -204,4 +196,4 @@ def ingestion_flow(batch_limit=1000, exhaust_all=False):
             break  # Exit after one batch if not exhausting all
 
 if __name__ == "__main__":
-    ingestion_flow(batch_limit=5000)
+    ingestion_flow(batch_limit=10)

@@ -22,13 +22,7 @@ headers = {
     }
 
 
-def formd_by_quarter(year, quarter):
-    month = quarter * 3 - 2
-    start_date = f"{year}-{month}-01"
-    if quarter == 4:
-        end_date = f"{year+1}-01-01"
-    else:
-        end_date = f"{year}-{month+3}-01"
+def formd_by_date(start_date, end_date):
     business_days = pd.bdate_range(start=start_date, end=end_date, inclusive='left')
     formd_df_list = []
     url_template = "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{date}.idx"
@@ -58,6 +52,17 @@ def formd_by_quarter(year, quarter):
 
     return formd_df
 
+def formd_by_quarter(year, quarter):
+    month = quarter * 3 - 2
+    start_date = f"{year}-{month}-01"
+    if quarter == 4:
+        end_date = f"{year+1}-01-01"
+    else:
+        end_date = f"{year}-{month+3}-01"
+    return formd_by_date(start_date, end_date)
+
+
+
 def load_formd_data(year, quarter):
     pipeline = dlt.pipeline(
         pipeline_name="sec_formd_pipeline",
@@ -84,6 +89,6 @@ def load_formd_data(year, quarter):
 
 
 if __name__ == "__main__":
-    quarter = 4
-    year = 2025
+    quarter = 1
+    year = 2026
     load_formd_data(year, quarter)
