@@ -6,14 +6,14 @@ import re
 from pathlib import Path
 
 def load_data(file_path):
-	column_headers = ['CIK', 'Name', 'CRD', 'Address', 'Address2', 'City', 'State', 'zip', 'na']
+	column_headers = ['CIK', 'Name', 'Film_Number', 'Address', 'Address2', 'City', 'State', 'zip', 'na']
 	df = pd.read_csv(
 		file_path,
 		sep='\t',           
 		header=None,       
 		names=column_headers,
 		encoding='utf-16',
-		dtype={'CIK': str, 'CRD': str}
+		dtype={'CIK': str, 'Film_Number': str}
 		)
 	return df
 

@@ -3,3 +3,4 @@ requests
 dlt[bigquery]
 python-dateutil
 python-dotenv
+google-cloud-bigquery
