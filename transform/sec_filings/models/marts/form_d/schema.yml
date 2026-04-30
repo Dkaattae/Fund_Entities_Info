@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: form_d_pooled_funds
+    description: >
+      All Form D filings filtered to industry_group_type = 'Pooled
+      Investment Fund'. Surfaces 3(c)(1) / 3(c)(7) / 506(b) / 506(c)
+      flags plus small/emerging proxies (no thresholds applied).
+    columns:
+      - name: accession_number
+        tests:
+          - unique
+          - not_null
+
+  - name: form_d_with_adviser
+    description: >
+      Per pooled-fund Form D filing, joined to the investment adviser via
+      file_num ↔ Form ADV form_d_num, with related-persons promoter as a
+      fallback.  Includes the adviser's other Form D file numbers.
+    columns:
+      - name: accession_number
+        tests:
+          - unique
+          - not_null
+      - name: adviser_source
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['form_adv_join', 'form_d_related_person', 'none']
+
+  - name: form_d_fund_history
+    description: >
+      Per primary issuer CIK: list of offerings + total capital raised.
+      Capital math: latest amount_sold per offering (file_num), summed
+      across distinct offerings — avoids double-counting across amendments.
+    columns:
+      - name: primary_issuer_cik
+        tests:
+          - unique
+          - not_null
+
+  - name: newly_emerging_funds
+    description: >
+      Pooled funds passing strict "newly emerging" filters (year-of-inc
+      after backfill floor, first sale yet to occur, only Form D for issuer,
+      file_num not in prior ADV).  Bucketed by relationship to adviser.
+    columns:
+      - name: accession_number
+        tests:
+          - unique
+          - not_null
+      - name: relationship_to_adviser
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['adviser_also_new', 'adviser_established', 'no_adv_found']

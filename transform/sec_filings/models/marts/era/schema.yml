@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: era_latest_filing
+    description: One row per ERA entity (CRD, fallback SEC adviser #) — most recent filing.
+    columns:
+      - name: entity_key
+        tests:
+          - unique
+          - not_null
+
+  - name: era_filing_history
+    description: All filings per ERA, with amendment flags and fiscal year end.
+    columns:
+      - name: filing_id
+        tests:
+          - not_null
+      - name: entity_key
+        tests:
+          - not_null
+
+  - name: era_state_registration_status
+    description: Per-ERA flag on whether the firm is also a state-registered RIA.
+    columns:
+      - name: entity_key
+        tests:
+          - unique
+          - not_null
+
+  - name: service_provider_dim
+    description: Canonical service-provider directory (auditor / fund admin / prime broker / marketer / custodian).
+    columns:
+      - name: canonical_id
+        tests:
+          - not_null
+      - name: provider_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['AUDITOR', 'FUND_ADMIN', 'PRIME_BROKER', 'MARKETER', 'CUSTODIAN']
+
+  - name: service_provider_clients
+    description: Per-provider client list for the latest year of ERA filings.
+    columns:
+      - name: canonical_id
+        tests:
+          - not_null

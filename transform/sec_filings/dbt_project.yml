@@ -1,0 +1,50 @@
+name: 'sec_filings'
+version: '1.0.0'
+config-version: 2
+
+profile: 'sec_filings'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  state_raw_dataset:  "state_adviser"
+  era_raw_dataset:    "era_adv"
+  form_d_raw_dataset: "form_d_filings"
+  emerging_window_days: 180
+
+models:
+  sec_filings:
+    staging:
+      +materialized: view
+      +schema: staging
+      state_adv:
+        +tags: ["state_adv"]
+      era:
+        +tags: ["era"]
+      form_d:
+        +tags: ["form_d"]
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+      era:
+        +tags: ["era"]
+      form_d:
+        +tags: ["form_d"]
+    marts:
+      +materialized: table
+      +schema: marts
+      state_adv:
+        +tags: ["state_adv"]
+      era:
+        +tags: ["era"]
+      form_d:
+        +tags: ["form_d"]

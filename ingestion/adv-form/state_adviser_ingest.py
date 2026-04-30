@@ -220,14 +220,41 @@ def backfill(start_date: date, end_date: date | None = None):
         dt += timedelta(days=1)
 
 
+def get_latest_raw_date() -> date | None:
+    """Query BQ for the most recent snapshot_date in the raw firms table."""
+    table_id = f"{project_id}.{DATASET}.{RAW_FIRMS_TABLE}"
+    try:
+        bq_client.get_table(table_id)
+    except Exception:
+        return None
+    query = f"SELECT MAX(snapshot_date) as max_date FROM `{table_id}`"
+    result = bq_client.query(query).to_dataframe()
+    val = result["max_date"].iloc[0]
+    if pd.isna(val):
+        return None
+    return pd.Timestamp(val).date()
+
+
 def update_daily():
-    """Run the pipeline for the latest available date."""
-    dt = find_latest_available()
-    if dt is None:
-        print("No recent feed found.")
+    """Check BQ for the last ingested date, then backfill any gap to today."""
+    latest_available = find_latest_available()
+    if latest_available is None:
+        print("No recent feed found on SEC.")
         return
-    print(f"Latest available feed: {dt}")
-    ingest_date(dt)
+
+    last_in_bq = get_latest_raw_date()
+    if last_in_bq is None:
+        print("No existing data in BQ. Running latest available date only.")
+        ingest_date(latest_available)
+        return
+
+    start = last_in_bq + timedelta(days=1)
+    if start > latest_available:
+        print(f"Already up to date (last in BQ: {last_in_bq}, latest on SEC: {latest_available}).")
+        return
+
+    print(f"Last in BQ: {last_in_bq}. Backfilling {start} to {latest_available}.")
+    backfill(start, latest_available)
 
 
 if __name__ == "__main__":

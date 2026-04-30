@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: newly_registered_rias
+    description: >
+      One row per RIA, capturing the first time the firm appeared in the
+      state-adviser system (regardless of which state). Sourced from the
+      master table's first_seen_date field.
+    columns:
+      - name: firm_crd
+        description: Firm CRD (primary key)
+        tests:
+          - unique
+          - not_null
+      - name: first_seen_date
+        description: Date the firm was first observed anywhere in the system
+        tests:
+          - not_null
+
+  - name: ria_state_registrations
+    description: >
+      One row per (firm, state, registration_type). Includes firm-level AUM
+      and aggregate counts of how many states each firm is registered in.
+    columns:
+      - name: firm_crd
+        tests:
+          - not_null
+      - name: regulator_state
+        tests:
+          - not_null
+      - name: registration_type
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['STATE', 'ERA']
+
+  - name: monthly_new_registrations
+    description: >
+      Monthly time series of new (firm, state) registrations. Same firm
+      registering in a different state counts as a separate event. Will be
+      sparse until enough historical snapshots are ingested.
+    columns:
+      - name: registration_month
+        tests:
+          - not_null
+
+  - name: state_ria_firm_history
+    description: >
+      Per-firm monthly history of state-RIA registrations. One row per
+      (firm_crd, history_month) using the LAST snapshot observed in that
+      month, with month-over-month deltas (jurisdictions_added / dropped,
+      AUM change). Will be sparse until each month accumulates snapshots.
+    columns:
+      - name: firm_crd
+        tests:
+          - not_null
+      - name: history_month
+        tests:
+          - not_null

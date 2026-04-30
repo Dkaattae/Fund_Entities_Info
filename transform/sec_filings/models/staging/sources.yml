@@ -1,0 +1,32 @@
+version: 2
+
+sources:
+  - name: state_adviser
+    database: "{{ target.project }}"
+    schema: "{{ var('state_raw_dataset') }}"
+    tables:
+      - name: state_adviser_firms_raw
+      - name: state_adviser_registrations_raw
+      - name: state_adviser_master
+
+  - name: era_adv
+    database: "{{ target.project }}"
+    schema: "{{ var('era_raw_dataset') }}"
+    tables:
+      - name: base
+      - name: filing_types
+      - name: auditors
+      - name: fund_admins
+      - name: primary_brokers
+      - name: marketers
+      - name: custodians
+      - name: form_d_num
+
+  - name: form_d_filings
+    database: "{{ target.project }}"
+    schema: "{{ var('form_d_raw_dataset') }}"
+    tables:
+      - name: form_d_submission
+      - name: issuer
+      - name: offering
+      - name: related_persons
