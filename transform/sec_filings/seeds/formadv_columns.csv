@@ -1,0 +1,112 @@
+column_name,form_adv_item,description,data_type,notes,era_xml_column
+FilingID,N/A - Metadata,Unique internal IARD/SEC identifier for this filing,string,System-generated,filing_id
+FormVersion,N/A - Metadata,Version of Form ADV template used,string,,form_version
+DateSubmitted,N/A - Metadata,Date the filing was submitted to IARD,date,,date_submitted
+Execution Type,N/A - Metadata,Type of submission (Initial / Annual Amendment / Other Amendment),string,,execution_type
+Signatory,N/A - Metadata,Name of the person who certified/signed the filing,string,,signatory
+Execution Date,N/A - Metadata,Date the form was signed,date,,execution_date
+Title,N/A - Metadata,Title/role of the signatory,string,,
+1A,Item 1.A,Full legal name of the investment adviser,string,If SID of a bank use full bank legal name,_1_a
+1B1,Item 1.B.1,Other business names (DBA names) used by the adviser,string,Links to Schedule D Section 1.B,_1_b1
+1C-Legal,Item 1.C (Legal),SEC file number,string,Format: 801-XXXXX,
+1C-Business,Item 1.C (Business),CRD registration number,string,,
+1C-New Name,Item 1.C (New Name),New legal name if a name change is being reported,string,,
+1D,Item 1.D,SEC-assigned adviser number (e.g. 801-XXXXX),string,,_1_d
+1E1,Item 1.E.1,FINRA CRD registration number,string,Additional URLs in Schedule D,_1_e1
+1F1-Street 1,Item 1.F.1,Principal office street address line 1,string,,_1_f1_street_1
+1F1-Street 2,Item 1.F.1,Principal office street address line 2,string,,_1_f1_street_2
+1F1-City,Item 1.F.1,Principal office city,string,,_1_f1_city
+1F1-State,Item 1.F.1,Principal office state,string,Two-letter state code for US addresses,_1_f1_state
+1F1-Country,Item 1.F.1,Principal office country,string,,_1_f1_country
+1F1-Postal,Item 1.F.1,Principal office postal/ZIP code,string,,_1_f1_postal
+1F1-Private,Item 1.F.1 (Private flag),Whether the principal office address is flagged as private/not public,boolean,Y = address suppressed from public display,
+1F2-M-F,Item 1.F.2,Business hours Monday–Friday,string,,
+1F2-Other,Item 1.F.2,Business hours other than Monday–Friday,string,,
+1F2-Hours,Item 1.F.2,Total or additional business hours detail,string,,
+1F3,Item 1.F.3,Primary phone number,string,,
+1F4,Item 1.F.4,Fax number,string,,
+1F5,Item 1.F.5,Name of Chief Compliance Officer (CCO),string,,
+1G-Street 1,Item 1.G,Mailing address street line 1 (if different from principal office),string,Leave blank if same as 1.F,
+1G-Street 2,Item 1.G,Mailing address street line 2,string,,
+1G-City,Item 1.G,Mailing address city,string,,
+1G-State,Item 1.G,Mailing address state,string,,
+1G-Country,Item 1.G,Mailing address country,string,,
+1G-Postal,Item 1.G,Mailing address postal/ZIP code,string,,
+1G-Private,Item 1.G (Private flag),Whether the mailing address is flagged as private,boolean,,
+1I,Item 1.I,Website addresses (supplemental — links to Schedule D),string,,
+1L,Item 1.L,Legal Entity Identifier (LEI) if the adviser has one,string,20-character alphanumeric code issued by GLEIF,
+1M,Item 1.M,Does the adviser have a related person that is a broker-dealer?,boolean,Y/N,
+1N,Item 1.N,Does the adviser have a related person that is an investment company?,boolean,Y/N,
+1O,Item 1.O,Whether total regulatory AUM is reported at year-end,boolean,Y/N flag,
+1OAmount,Item 1.O (Amount),Total regulatory assets under management at year-end (USD),numeric,,
+1P,Item 1.P,Fiscal year end month,string,,
+2B1,Item 2.B.1,Primary basis/box checked for SEC registration eligibility,string,E.g. $110M+ AUM; multi-state adviser; pension consultant; ERA,
+2B2,Item 2.B.2,Secondary eligibility basis,string,,
+2B3,Item 2.B.3,Tertiary eligibility basis,string,,
+2B-Assets,Item 2.B (Assets),Regulatory AUM amount supporting the eligibility claim,numeric,,_2_b_assets
+3A,Item 3.A,Form of legal organization of the adviser,string,E.g. corporation; LLC; partnership; sole proprietor; other,_3_a
+3A-Other,Item 3.A (Other),Description if 'Other' was selected in Item 3.A,string,,
+3B,Item 3.B,Fiscal year end month (e.g. DECEMBER). ERA form Item 3.B — differs from Form ADV Part 1 Item 3.B (state of org).,string,,_3_b
+3C-State,Item 3.C (State),State of incorporation/organization,string,,_3_c_state
+3C-Country,Item 3.C (Country),Country of incorporation/organization,string,,_3_c_country
+6A1,Item 6.A.1,Provides financial planning services,boolean,Y/N checkbox,
+6A2,Item 6.A.2,Provides portfolio management for individuals and/or small businesses,boolean,Y/N checkbox,
+6A3,Item 6.A.3,Provides portfolio management for investment companies (e.g. mutual funds),boolean,Y/N checkbox,
+6A4,Item 6.A.4,Provides portfolio management for pooled investment vehicles other than investment companies,boolean,Y/N checkbox,
+6A5,Item 6.A.5,Provides portfolio management for businesses (other than small businesses) and institutional clients,boolean,Y/N checkbox,
+6A6,Item 6.A.6,Provides pension consulting services,boolean,Y/N checkbox,
+6A7,Item 6.A.7,Provides selection of other advisers (adviser-of-advisers),boolean,Y/N checkbox,
+6A8,Item 6.A.8,Publishes periodicals or newsletters,boolean,Y/N checkbox,
+6A9,Item 6.A.9,Provides security ratings or pricing services,boolean,Y/N checkbox,
+6A10,Item 6.A.10,Provides market timing services,boolean,Y/N checkbox,
+6A11,Item 6.A.11,Provides educational seminars or workshops,boolean,Y/N checkbox,
+6A12,Item 6.A.12,Participates in wrap fee programs,boolean,Y/N checkbox,
+6A13,Item 6.A.13,Provides other advisory services not listed above,boolean,Y/N checkbox,
+6A14,Item 6.A.14,Advisory services type — other (checkbox),boolean,Y/N checkbox,
+6A14-Other,Item 6.A.14 (Other description),Description of the other advisory services,string,,
+6B1,Item 6.B.1,Adviser or related person engages in sales of securities (e.g. broker-dealer activity),boolean,Y/N checkbox,
+6B2,Item 6.B.2,Adviser or related person engages in insurance sales,boolean,Y/N checkbox,
+6B3,Item 6.B.3,Adviser or related person engages in other non-advisory business activities,boolean,Y/N checkbox,
+7A1,Item 7.A.1,Adviser or related person is a broker-dealer,boolean,Y/N,
+7A2,Item 7.A.2,Adviser or related person is a registered representative of a broker-dealer,boolean,Y/N,
+7A3,Item 7.A.3,Adviser or related person is a commodity pool operator or commodity trading adviser (CPO/CTA),boolean,Y/N,
+7A4,Item 7.A.4,Adviser or related person is a futures commission merchant (FCM),boolean,Y/N,
+7A5,Item 7.A.5,Adviser or related person is a banking or thrift institution,boolean,Y/N,
+7A6,Item 7.A.6,Adviser or related person is a trust company,boolean,Y/N,
+7A7,Item 7.A.7,Adviser or related person is an accountant or accounting firm,boolean,Y/N,
+7A8,Item 7.A.8,Adviser or related person is a lawyer or law firm,boolean,Y/N,
+7A9,Item 7.A.9,Adviser or related person is an insurance company or agency,boolean,Y/N,
+7A10,Item 7.A.10,Adviser or related person is a pension consultant,boolean,Y/N,
+7A11,Item 7.A.11,Adviser or related person is a real estate broker/dealer or adviser,boolean,Y/N,
+7A12,Item 7.A.12,Adviser or related person is a sponsor or syndicator of limited partnerships,boolean,Y/N,
+7A13,Item 7.A.13,Adviser or related person is an investment company,boolean,Y/N,
+7A14,Item 7.A.14,Adviser or related person is a municipal securities dealer or municipal adviser,boolean,Y/N,
+7A15,Item 7.A.15,Adviser or related person is a swap dealer or major swap participant,boolean,Y/N,
+7A16,Item 7.A.16,Adviser or related person is a nationally recognized statistical rating organization (NRSRO),boolean,Y/N,
+7B,Item 7.B,Adviser or related person acts as general partner / managing member / trustee for a private fund,boolean,Y/N — triggers Schedule D Section 7.B,
+10A,Item 10.A,Does any person not listed in Schedules A/B/C directly or indirectly control the adviser?,boolean,Y/N,
+11,Item 11 (header),General indicator — adviser or advisory affiliate has any disciplinary history,boolean,Y/N,
+11A1,Item 11.A.1,Criminal — felony conviction involving investment-related activity,boolean,Y/N — triggers ADV-DRP,
+11A2,Item 11.A.2,Criminal — felony charge (not yet convicted) involving investment-related activity,boolean,Y/N — triggers ADV-DRP,
+11B1,Item 11.B.1,Regulatory — found to have violated investment-related statutes or rules by any regulatory authority,boolean,Y/N — triggers ADV-DRP,
+11B2,Item 11.B.2,Regulatory — subject to order injunction or decree restricting investment-related activities,boolean,Y/N — triggers ADV-DRP,
+11C1,Item 11.C.1,Civil court — injunction in investment-related activity,boolean,Y/N — triggers ADV-DRP,
+11C2,Item 11.C.2,Civil court — found liable for investment-related damages,boolean,Y/N — triggers ADV-DRP,
+11C3,Item 11.C.3,Civil court — pending civil action involving investment-related conduct,boolean,Y/N — triggers ADV-DRP,
+11C4,Item 11.C.4,Civil court — found liable in non-investment-related civil matter,boolean,Y/N — triggers ADV-DRP,
+11C5,Item 11.C.5,Civil court — pending non-investment-related civil action,boolean,Y/N — triggers ADV-DRP,
+11D1,Item 11.D.1,SRO — found to have violated SRO rules (e.g. FINRA),boolean,Y/N — triggers ADV-DRP,
+11D2,Item 11.D.2,SRO — suspended or barred from membership or association,boolean,Y/N — triggers ADV-DRP,
+11D3,Item 11.D.3,SRO — pending SRO disciplinary proceeding,boolean,Y/N — triggers ADV-DRP,
+11D4,Item 11.D.4,SRO — expelled or suspended from SRO membership,boolean,Y/N — triggers ADV-DRP,
+11D5,Item 11.D.5,SRO — subject to final SRO order or disciplinary proceeding,boolean,Y/N — triggers ADV-DRP,
+11E1,Item 11.E.1,SEC/regulatory — found to have violated securities laws or regulations,boolean,Y/N — triggers ADV-DRP,
+11E2,Item 11.E.2,SEC/regulatory — subject to order suspending or restricting registration,boolean,Y/N — triggers ADV-DRP,
+11E3,Item 11.E.3,SEC/regulatory — pending investigation or proceeding,boolean,Y/N — triggers ADV-DRP,
+11E4,Item 11.E.4,SEC/regulatory — registration denied revoked or restricted by any regulator,boolean,Y/N — triggers ADV-DRP,
+11F,Item 11.F,Bankruptcy — adviser or control person subject to a bankruptcy petition,boolean,Y/N — triggers ADV-DRP,
+11G,Item 11.G,Bond/fidelity — bonding company denied paid out or revoked a bond for the adviser,boolean,Y/N — triggers ADV-DRP,
+11H1a,Item 11.H.1.a,Judgment/lien — unsatisfied judgments or liens (subpart a),boolean,Y/N — triggers ADV-DRP,
+11H1b,Item 11.H.1.b,Judgment/lien — unsatisfied judgments or liens (subpart b),boolean,Y/N — triggers ADV-DRP,
+11H1c,Item 11.H.1.c,Judgment/lien — unsatisfied judgments or liens (subpart c),boolean,Y/N — triggers ADV-DRP,
+11H2,Item 11.H.2,Advisory affiliate — found to have violated financial rules or regulations,boolean,Y/N — triggers ADV-DRP,

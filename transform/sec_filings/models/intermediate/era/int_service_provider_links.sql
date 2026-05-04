@@ -102,40 +102,76 @@ with_normalized as (
         u.*,
         {{ normalize_provider_name('raw_name') }} as normalized_name
     from unioned u
+),
+
+-- Per (normalized_name, provider_type): find the most authoritative registry id
+-- across ALL filings. Priority: PCAOB > SEC > LEI.
+-- This resolves the common case where the same provider is sometimes reported
+-- without a registry number (yielding a NAME:hash) and sometimes with one.
+best_canonical as (
+    select
+        normalized_name,
+        provider_type,
+        coalesce(
+            min(case when pcaob_number is not null
+                     then concat('PCAOB:', cast(pcaob_number as string)) end),
+            min(case when sec_number is not null and sec_number != ''
+                     then concat('SEC:', sec_number) end),
+            min(case when lei is not null and lei != ''
+                     then concat('LEI:', lei) end)
+        ) as authoritative_id
+    from with_normalized
+    where normalized_name is not null and normalized_name != ''
+    group by normalized_name, provider_type
+),
+
+with_raw_canonical as (
+    select
+        w.*,
+        case
+            when w.pcaob_number is not null
+                then concat('PCAOB:', cast(w.pcaob_number as string))
+            when w.sec_number is not null and w.sec_number != ''
+                then concat('SEC:', w.sec_number)
+            when w.lei is not null and w.lei != ''
+                then concat('LEI:', w.lei)
+            when w.normalized_name is not null and w.normalized_name != ''
+                then concat(
+                    'NAME:',
+                    cast(farm_fingerprint(concat(
+                        w.provider_type, '|',
+                        w.normalized_name, '|',
+                        coalesce(lower(w.city), ''), '|',
+                        coalesce(lower(w.country), '')
+                    )) as string)
+                )
+            else null
+        end as raw_canonical_id
+    from with_normalized w
 )
 
 select
-    provider_type,
-    filing_id,
-    reference_id,
-    subreference_id,
-    raw_name,
-    normalized_name,
-    sec_number,
-    crd_number,
-    pcaob_number,
-    lei,
-    city,
-    state,
-    country,
-    filing_month,
+    w.provider_type,
+    w.filing_id,
+    w.reference_id,
+    w.subreference_id,
+    w.raw_name,
+    w.normalized_name,
+    w.sec_number,
+    w.crd_number,
+    w.pcaob_number,
+    w.lei,
+    w.city,
+    w.state,
+    w.country,
+    w.filing_month,
+    -- Upgrade NAME: ids to the authoritative registry id where known
     case
-        when pcaob_number is not null
-            then concat('PCAOB:', cast(pcaob_number as string))
-        when sec_number is not null and sec_number != ''
-            then concat('SEC:', sec_number)
-        when lei is not null and lei != ''
-            then concat('LEI:', lei)
-        when normalized_name is not null and normalized_name != ''
-            then concat(
-                'NAME:',
-                cast(farm_fingerprint(concat(
-                    provider_type, '|',
-                    normalized_name, '|',
-                    coalesce(lower(city), ''), '|',
-                    coalesce(lower(country), '')
-                )) as string)
-            )
-        else null
+        when w.raw_canonical_id like 'NAME:%' and bc.authoritative_id is not null
+            then bc.authoritative_id
+        else w.raw_canonical_id
     end as canonical_id
-from with_normalized
+from with_raw_canonical w
+left join best_canonical bc
+    on  w.normalized_name = bc.normalized_name
+    and w.provider_type   = bc.provider_type

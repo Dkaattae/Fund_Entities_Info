@@ -1,0 +1,6 @@
+streamlit>=1.35
+google-cloud-bigquery
+google-cloud-bigquery-storage
+db-dtypes
+pandas
+pyarrow

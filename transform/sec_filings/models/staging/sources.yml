@@ -14,6 +14,80 @@ sources:
     schema: "{{ var('era_raw_dataset') }}"
     tables:
       - name: base
+        description: >
+          Raw Form ADV ERA filings from IARD/SEC EDGAR. One row per filing submission.
+          Column names use the ERA XML numbering scheme which does NOT map 1-to-1 to
+          printed Form ADV item numbers — see seeds/formadv_columns.csv for the field map.
+        columns:
+          - name: filing_id
+            description: "Unique internal IARD/SEC identifier for this filing. System-generated."
+            data_type: string
+          - name: form_version
+            description: "Version of Form ADV template used."
+            data_type: string
+          - name: date_submitted
+            description: "Date the filing was submitted to IARD."
+            data_type: date
+          - name: execution_type
+            description: "Type of submission: Initial / Annual Amendment / Other Amendment."
+            data_type: string
+          - name: execution_date
+            description: "Date the form was signed by the signatory."
+            data_type: date
+          - name: signatory
+            description: "Name of the person who certified/signed the filing."
+            data_type: string
+          - name: filing_month
+            description: "YYYYMM period key derived from the filing submission date."
+            data_type: string
+          - name: _1_a
+            description: "Form ADV Item 1.A — Full legal name of the investment adviser."
+            data_type: string
+          - name: _1_b1
+            description: "Form ADV Item 1.B.1 — Other business/DBA names. Links to Schedule D Section 1.B."
+            data_type: string
+          - name: _1_d
+            description: "Form ADV Item 1.D — SEC-assigned adviser number (e.g. 801-XXXXX)."
+            data_type: string
+          - name: _1_e1
+            description: "Form ADV Item 1.E.1 — FINRA CRD registration number."
+            data_type: string
+          - name: _1_f1_street_1
+            description: "Form ADV Item 1.F.1 — Principal office street address line 1."
+            data_type: string
+          - name: _1_f1_street_2
+            description: "Form ADV Item 1.F.1 — Principal office street address line 2."
+            data_type: string
+          - name: _1_f1_city
+            description: "Form ADV Item 1.F.1 — Principal office city."
+            data_type: string
+          - name: _1_f1_state
+            description: "Form ADV Item 1.F.1 — Principal office state (two-letter code for US)."
+            data_type: string
+          - name: _1_f1_country
+            description: "Form ADV Item 1.F.1 — Principal office country."
+            data_type: string
+          - name: _1_f1_postal
+            description: "Form ADV Item 1.F.1 — Principal office postal/ZIP code."
+            data_type: string
+          - name: _1_f3
+            description: "Form ADV Item 1.F.3 — Primary phone number."
+            data_type: string
+          - name: _2_b_assets
+            description: "Form ADV Item 2.B — Regulatory AUM (USD) supporting the adviser's SEC registration eligibility."
+            data_type: numeric
+          - name: _3_a
+            description: "Form ADV Item 3.A — Form of legal organization (e.g. LLC, corporation, partnership)."
+            data_type: string
+          - name: _3_b
+            description: "Form ADV Item 3.B — Fiscal year end month (e.g. DECEMBER)."
+            data_type: string
+          - name: _3_c_state
+            description: "Form ADV Item 3.C — State of incorporation/organization."
+            data_type: string
+          - name: _3_c_country
+            description: "Form ADV Item 3.C — Country of incorporation/organization."
+            data_type: string
       - name: filing_types
       - name: auditors
       - name: fund_admins

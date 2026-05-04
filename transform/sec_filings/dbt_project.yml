@@ -16,10 +16,14 @@ clean-targets:
   - "dbt_packages"
 
 vars:
-  state_raw_dataset:  "state_adviser"
-  era_raw_dataset:    "era_adv"
-  form_d_raw_dataset: "form_d_filings"
+  state_raw_dataset:    "state_adviser"
+  era_raw_dataset:      "era_adv"
+  form_d_raw_dataset:   "form_d_filings"
   emerging_window_days: 180
+  # Earliest year with complete ERA data in BigQuery.
+  # service_provider_changes compares (backfill_start_year + 1) vs backfill_start_year.
+  # Increment this when you backfill further back.
+  backfill_start_year:  2025
 
 models:
   sec_filings:

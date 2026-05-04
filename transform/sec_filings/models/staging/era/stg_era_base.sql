@@ -16,6 +16,7 @@ select
     nullif(_1_f1_state, 'None')                                   as main_state,
     nullif(_1_f1_country, 'None')                                 as main_country,
     nullif(_1_f1_postal, 'None')                                  as main_postal_code,
+    nullif(_1_f3, 'None')                                         as phone_number,
     nullif(_3_a, 'None')                                          as org_form,
     nullif(_3_b, 'None')                                          as fiscal_year_end,
     nullif(_3_c_state, 'None')                                    as state_of_org,

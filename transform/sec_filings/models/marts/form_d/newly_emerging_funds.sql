@@ -23,6 +23,61 @@ with funds as (
     select * from {{ ref('form_d_pooled_funds') }}
 ),
 
+-- Related persons for each Form D filing, aggregated into an array
+related_persons_agg as (
+    select
+        accession_number,
+        array_agg(
+            struct(
+                full_name,
+                relationship_1,
+                relationship_2,
+                relationship_3,
+                is_promoter
+            )
+            order by person_seq_key
+        ) as related_persons
+    from {{ ref('stg_form_d_related_persons') }}
+    group by accession_number
+),
+
+-- Self-join on related persons: find other pooled funds sharing a named person.
+-- Groups by (this fund, other fund) to collect all shared person names in one row.
+shared_person_funds_raw as (
+    select
+        rp1.accession_number,
+        f2.primary_issuer_name  as shared_fund_name,
+        f2.file_num             as shared_fund_file_num,
+        f2.primary_issuer_cik   as shared_fund_cik,
+        f2.filing_date          as shared_fund_filing_date,
+        array_agg(rp1.full_name order by rp1.full_name) as via_persons
+    from {{ ref('stg_form_d_related_persons') }} rp1
+    join {{ ref('stg_form_d_related_persons') }} rp2
+        on  rp1.full_name        = rp2.full_name
+        and rp1.accession_number != rp2.accession_number
+    join {{ ref('form_d_pooled_funds') }} f2
+        on rp2.accession_number = f2.accession_number
+    group by 1, 2, 3, 4, 5
+),
+
+shared_person_funds_agg as (
+    select
+        accession_number,
+        count(*)  as shared_fund_count,
+        array_agg(
+            struct(
+                shared_fund_name,
+                shared_fund_file_num,
+                shared_fund_cik,
+                shared_fund_filing_date,
+                via_persons
+            )
+            order by shared_fund_filing_date desc
+        ) as funds_with_shared_persons
+    from shared_person_funds_raw
+    group by accession_number
+),
+
 backfill_floor as (
     select extract(year from min(filing_date)) as floor_year
     from {{ ref('stg_form_d_submission') }}
@@ -115,7 +170,16 @@ select
     case when l.adviser_source = 'form_adv_join'
          then l.adviser_latest_adv_filing_id end   as adviser_latest_adv_filing_id,
     case when l.adviser_source = 'form_adv_join'
-         then l.adviser_latest_adv_filing_date end as adviser_latest_adv_filing_date
+         then l.adviser_latest_adv_filing_date end as adviser_latest_adv_filing_date,
+
+    -- Related persons on this filing
+    coalesce(rpa.related_persons, [])              as related_persons,
+
+    -- Other pooled funds connected via a shared related person
+    coalesce(spf.shared_fund_count, 0)             as shared_fund_count,
+    spf.funds_with_shared_persons
 from candidates c
-left join link l using (accession_number)
+left join link                  l   using (accession_number)
+left join related_persons_agg   rpa using (accession_number)
+left join shared_person_funds_agg spf using (accession_number)
 order by c.filing_date desc, c.primary_issuer_cik

@@ -1,0 +1,212 @@
+version: 2
+
+models:
+  - name: stg_era_base
+    description: >
+      Cleaned and renamed ERA base filings. One row per filing submission.
+      Three raw fields have ERA-XML numbering that does NOT match printed Form ADV item
+      numbers: _1_d → sec_adviser_number, _1_e1 → firm_crd, _3_b → fiscal_year_end.
+    columns:
+      - name: filing_id
+        description: "Unique IARD/SEC identifier for this filing. Primary key of the raw source."
+      - name: form_version
+        description: "Version of Form ADV template used for this filing."
+      - name: date_submitted
+        description: "Date the filing was submitted to IARD."
+      - name: execution_type
+        description: "Type of submission: Initial / Annual Amendment / Other Amendment."
+      - name: execution_date
+        description: "Date the form was signed by the signatory."
+      - name: signatory
+        description: "Name of the person who certified and signed the filing."
+      - name: filing_month
+        description: "YYYYMM period key derived from date_submitted. Used for partitioning and month-level joins."
+      - name: legal_name
+        description: "Form ADV Item 1.A — Full legal name of the investment adviser."
+      - name: business_name
+        description: "Form ADV Item 1.B.1 — Primary DBA / business name, if different from legal name."
+      - name: sec_adviser_number
+        description: "Form ADV Item 1.D — SEC-assigned adviser number (format: 801-XXXXX)."
+      - name: firm_crd
+        description: "Form ADV Item 1.E.1 — FINRA CRD registration number. Cast to string; use coalesce(firm_crd, sec_adviser_number) as entity_key."
+      - name: main_street1
+        description: "Form ADV Item 1.F.1 — Principal office street address line 1."
+      - name: main_street2
+        description: "Form ADV Item 1.F.1 — Principal office street address line 2."
+      - name: main_city
+        description: "Form ADV Item 1.F.1 — Principal office city."
+      - name: main_state
+        description: "Form ADV Item 1.F.1 — Principal office state (two-letter US code or blank for non-US)."
+      - name: main_country
+        description: "Form ADV Item 1.F.1 — Principal office country."
+      - name: main_postal_code
+        description: "Form ADV Item 1.F.1 — Principal office postal/ZIP code."
+      - name: phone_number
+        description: "Form ADV Item 1.F.3 — Primary phone number."
+      - name: assets_under_management
+        description: "Form ADV Item 2.B — Regulatory AUM in USD supporting SEC registration eligibility."
+      - name: org_form
+        description: "Form ADV Item 3.A — Legal form of organization (e.g. LLC, corporation, partnership, sole proprietor)."
+      - name: fiscal_year_end
+        description: "Form ADV Item 3.B — Fiscal year end month (e.g. DECEMBER, MARCH). Used to compute the annual amendment due date (FYE + 90 days)."
+      - name: state_of_org
+        description: "Form ADV Item 3.C — State under whose laws the adviser is organized."
+      - name: country_of_org
+        description: "Form ADV Item 3.C — Country under whose laws the adviser is organized."
+
+  - name: stg_era_filing_types
+    description: >
+      Filing type flags for each ERA submission. One row per filing_id.
+      Joined to stg_era_base in era_filing_history to classify each submission.
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: is_initial_sec_registration
+        description: "True if this is an initial SEC registration request (full Form ADV)."
+      - name: is_annual_amendment_registered
+        description: "True if this is the annual updating amendment for a registered adviser."
+      - name: is_other_amendment_registered
+        description: "True if this is a non-annual amendment for a registered adviser."
+      - name: is_initial_state_registration
+        description: "True if this is an initial state registration request."
+      - name: is_initial_sec_era
+        description: "True if this is the adviser's first-ever ERA report filed with the SEC."
+      - name: is_annual_amendment_era
+        description: "True if this is the annual updating amendment to an ERA report."
+      - name: is_other_amendment_era
+        description: "True if this is a non-annual amendment to an ERA report (mid-year correction or update)."
+      - name: is_initial_state_era
+        description: "True if this is an initial state ERA report."
+      - name: is_final_state_era
+        description: "True if this is a final (withdrawal) state ERA report."
+      - name: is_final_sec_era
+        description: "True if this is a final (withdrawal) SEC ERA report."
+      - name: annual_amendment_fiscal_year
+        description: >
+          The fiscal year number being reported on in an annual amendment (e.g. 2025 for
+          a March 2026 filing covering FY2025). Null for non-annual filings.
+          This is the canonical 'reporting year' used for year-over-year comparisons.
+      - name: filing_month
+        description: "YYYYMM period key from the source."
+
+  - name: stg_era_auditors
+    description: "Auditing firms reported per ERA filing. One row per (filing_id, reference_id)."
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: reference_id
+        description: "Position/sequence of this auditor within the filing."
+      - name: raw_name
+        description: "Legal name of the auditing firm as submitted."
+      - name: city
+        description: "City where the auditing firm is located."
+      - name: state
+        description: "State where the auditing firm is located."
+      - name: country
+        description: "Country where the auditing firm is located."
+      - name: is_independent
+        description: "True if the auditor is independent of the adviser."
+      - name: is_pcaob_registered
+        description: "True if the auditor is registered with the PCAOB."
+      - name: pcaob_number
+        description: "PCAOB registration number. Used as canonical_id for auditors in int_service_provider_links."
+      - name: is_pcaob_inspected
+        description: "True if the auditor has been inspected by the PCAOB."
+      - name: filing_month
+        description: "YYYYMM period key from the source."
+
+  - name: stg_era_custodians
+    description: "Custodians reported per ERA filing. One row per (filing_id, reference_id)."
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: reference_id
+        description: "Position/sequence of this custodian within the filing."
+      - name: raw_name
+        description: "Legal name of the custodian as submitted."
+      - name: business_name
+        description: "Primary business name of the custodian."
+      - name: sec_number
+        description: "SEC registration number of the custodian. Used as canonical_id where available."
+      - name: lei
+        description: "Legal Entity Identifier (LEI) of the custodian."
+      - name: city
+        description: "City where the custodian is located."
+      - name: state
+        description: "State where the custodian is located."
+      - name: country
+        description: "Country where the custodian is located."
+      - name: is_related_person
+        description: "True if the custodian is a related person of the adviser."
+      - name: filing_month
+        description: "YYYYMM period key from the source."
+
+  - name: stg_era_fund_admins
+    description: "Fund administrators reported per ERA filing. One row per (filing_id, reference_id)."
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: reference_id
+        description: "Position/sequence of this administrator within the filing."
+      - name: raw_name
+        description: "Name of the administrator as submitted."
+      - name: city
+        description: "City where the administrator is located."
+      - name: state
+        description: "State where the administrator is located."
+      - name: country
+        description: "Country where the administrator is located."
+      - name: is_related_person
+        description: "True if the administrator is a related person of the adviser."
+      - name: statements
+        description: "Whether the administrator sends account statements to investors."
+      - name: who_sends_statements
+        description: "Who is responsible for sending statements to investors."
+      - name: filing_month
+        description: "YYYYMM period key from the source."
+
+  - name: stg_era_primary_brokers
+    description: "Prime brokers reported per ERA filing. One row per (filing_id, reference_id)."
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: reference_id
+        description: "Position/sequence of this broker within the filing."
+      - name: raw_name
+        description: "Legal name of the prime broker as submitted."
+      - name: sec_number
+        description: "SEC registration number of the broker. Used as canonical_id where available."
+      - name: crd_number
+        description: "FINRA CRD number of the broker."
+      - name: city
+        description: "City where the broker is located."
+      - name: state
+        description: "State where the broker is located."
+      - name: country
+        description: "Country where the broker is located."
+      - name: filing_month
+        description: "YYYYMM period key from the source."
+
+  - name: stg_era_marketers
+    description: "Third-party marketers reported per ERA filing. One row per (filing_id, reference_id, subreference_id)."
+    columns:
+      - name: filing_id
+        description: "Foreign key to stg_era_base.filing_id."
+      - name: reference_id
+        description: "Position/sequence of this marketer within the filing."
+      - name: subreference_id
+        description: "Sub-position within a marketer record (for multi-part entries)."
+      - name: raw_name
+        description: "Legal name of the marketer as submitted."
+      - name: sec_number
+        description: "SEC registration number of the marketer."
+      - name: crd_number
+        description: "FINRA CRD number of the marketer."
+      - name: city
+        description: "City where the marketer is located."
+      - name: state
+        description: "State where the marketer is located."
+      - name: country
+        description: "Country where the marketer is located."
+      - name: filing_month
+        description: "YYYYMM period key from the source."

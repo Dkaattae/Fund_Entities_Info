@@ -1,0 +1,11 @@
+pandas
+requests
+python-dateutil
+python-dotenv
+google-cloud-bigquery
+google-cloud-bigquery-storage
+db-dtypes
+pyarrow
+dlt[bigquery]
+prefect
+dbt-bigquery
