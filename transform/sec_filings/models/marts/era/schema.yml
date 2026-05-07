@@ -2,12 +2,35 @@ version: 2
 
 models:
   - name: era_latest_filing
-    description: One row per ERA entity (CRD, fallback SEC adviser #) — most recent filing.
+    description: >
+      One row per ERA entity (CRD, fallback SEC adviser #) — most recent filing of any type.
+      Includes amendment type flags and annual_amendment_fiscal_year from era_filing_history,
+      plus address/org fields joined from stg_era_base.
     columns:
       - name: entity_key
         tests:
           - unique
           - not_null
+
+  - name: era_fund_closures
+    description: >
+      Fund closure events detected by comparing consecutive ERA filings per adviser.
+      Two closure signals: fund_removed (a Form D file_number dropped from Form ADV)
+      and aum_zeroed (AUM went from > 0 to 0 between two consecutive filings).
+      One row per closure event; filing_date_current is when it was first detected.
+    columns:
+      - name: entity_key
+        description: "Adviser CRD or SEC adviser number."
+      - name: closure_signal
+        description: "fund_removed | aum_zeroed"
+      - name: filing_date_current
+        description: "Date of the filing where the closure was first detected."
+      - name: filing_date_prior
+        description: "Date of the previous filing (last known healthy state)."
+      - name: form_d_file_number
+        description: "The specific Form D file number that was removed (fund_removed signal only)."
+      - name: fund_name
+        description: "Name of the removed fund from Form D data (fund_removed signal only)."
 
   - name: era_filing_history
     description: All filings per ERA, with amendment flags and fiscal year end.

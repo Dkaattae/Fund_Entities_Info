@@ -29,6 +29,10 @@ select
     total_amount_sold,
     total_remaining_numeric,
 
+    -- EDGAR links
+    edgar_filing_url,
+    edgar_fund_history_url,
+
     -- Exemption flags
     claims_3c1,
     claims_3c7,

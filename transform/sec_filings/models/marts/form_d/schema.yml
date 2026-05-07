@@ -39,6 +39,59 @@ models:
           - unique
           - not_null
 
+  - name: form_d_first_raise
+    description: >
+      Per fund offering (file_num): the first moment total_amount_sold crossed above 0,
+      plus days elapsed from the initial Form D filing to that first raise.
+      Dimensions (fund type, exemptions, manager type) are taken from the initial filing
+      so cohorts are stable. Scoped to 2025+ initial filers that have raised something.
+    columns:
+      - name: file_num
+        description: "SEC Form D file number — uniquely identifies the offering."
+        tests:
+          - unique
+          - not_null
+      - name: initial_filing_date
+        description: "Date of the first non-amendment Form D (day 0 of the fundraise)."
+      - name: first_raise_date
+        description: "Date of the first filing where total_amount_sold > 0."
+      - name: first_raise_amount
+        description: "total_amount_sold on the first raise filing (USD)."
+      - name: days_to_first_raise
+        description: "Calendar days from initial_filing_date to first_raise_date."
+      - name: investor_exemption
+        description: "3c1 (≤100 investors) | 3c7 (qualified purchasers) | other."
+      - name: offering_exemption
+        description: "506b (no public solicitation) | 506c (can advertise publicly) | other."
+      - name: manager_type
+        description: "established_manager | new_manager | no_adviser — based on ERA adviser link."
+      - name: adviser_cohort
+        description: >
+          era_big | era_small | multi_state_big | multi_state_small |
+          single_state_big | single_state_small | no_adviser.
+          ERA = SEC exempt reporter not state-registered.
+          multi/single_state = also holds state RIA registrations.
+          big/small split at adviser_aum_threshold var (default $100M).
+      - name: adviser_aum
+        description: "ERA adviser's assets under management from their most recent Form ADV-ERA filing."
+      - name: adviser_state_registration_count
+        description: "Number of states the adviser is registered in (null if ERA-only)."
+
+  - name: form_d_new_funds_by_quarter
+    description: >
+      Count of initial (non-amendment) pooled investment fund Form D filings,
+      one row per (quarter, fund_type), starting 2025-01-01.
+      Long format makes it easy to chart stacked/grouped bars by fund type.
+    columns:
+      - name: filing_quarter
+        description: "First day of the quarter (DATE, e.g. 2025-01-01 for Q1 2025)."
+      - name: quarter_label
+        description: "Human-readable label, e.g. '2025-Q1'."
+      - name: fund_type
+        description: "investment_fund_type value, or 'Unknown' if null."
+      - name: fund_count
+        description: "Count of initial Form D filings for this quarter + fund type."
+
   - name: newly_emerging_funds
     description: >
       Pooled funds passing strict "newly emerging" filters (year-of-inc

@@ -1,33 +1,52 @@
 {{ config(materialized='table') }}
 
 -- One row per ERA entity (CRD where available, else SEC adviser number).
--- Picks the most recent filing by date_submitted.
+-- Picks the most recent filing by date_submitted, then filing_id as tiebreaker.
+-- Joins back to stg_era_base for address and org fields not carried in filing_history.
 
-with base as (
-    select * from {{ ref('stg_era_base') }}
-),
-
-keyed as (
-    select
-        coalesce(firm_crd, sec_adviser_number) as entity_key,
-        firm_crd,
-        sec_adviser_number,
-        legal_name,
-        business_name,
-        main_street1, main_street2, main_city, main_state,
-        main_country, main_postal_code,
-        org_form, fiscal_year_end, state_of_org, country_of_org,
-        execution_type, execution_date, signatory,
-        assets_under_management,
-        date_submitted,
-        filing_id,
-        filing_month,
+with latest as (
+    select *,
         row_number() over (
-            partition by coalesce(firm_crd, sec_adviser_number)
+            partition by entity_key
             order by date_submitted desc nulls last, filing_id desc
         ) as rn
-    from base
-    where coalesce(firm_crd, sec_adviser_number) is not null
+    from {{ ref('era_filing_history') }}
+),
+
+base as (
+    select * from {{ ref('stg_era_base') }}
 )
 
-select * except (rn) from keyed where rn = 1
+select
+    l.entity_key,
+    l.firm_crd,
+    l.sec_adviser_number,
+    l.legal_name,
+    l.business_name,
+    b.main_street1,
+    b.main_street2,
+    b.main_city,
+    b.main_state,
+    b.main_country,
+    b.main_postal_code,
+    b.org_form,
+    b.state_of_org,
+    b.country_of_org,
+    l.fiscal_year_end,
+    l.execution_type,
+    l.execution_date,
+    b.signatory,
+    l.assets_under_management,
+    l.date_submitted,
+    l.filing_id,
+    l.filing_month,
+    l.is_annual_amendment_era,
+    l.is_other_amendment_era,
+    l.is_initial_sec_era,
+    l.annual_amendment_fiscal_year,
+    case when l.firm_crd is not null
+        then concat('https://www.adviserinfo.sec.gov/Firm/', l.firm_crd)
+    end as iapd_url
+from latest l
+join base b using (filing_id)
+where l.rn = 1

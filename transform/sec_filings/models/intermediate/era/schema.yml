@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: int_era_filings_by_year
+    description: >
+      One row per (entity_key, reporting_year). Reporting year is derived from
+      annual_amendment_fiscal_year on annual amendments; other-amendments inherit the
+      reporting year of the most recent prior annual for that entity.
+      Use this for year-over-year analysis, compliance views, and dashboards.
+    columns:
+      - name: entity_key
+        description: "CRD number, or SEC adviser number where CRD is unavailable."
+      - name: reporting_year
+        description: "Fiscal year being reported on (e.g. 2024 for an annual filed in early 2025)."
+      - name: annual_filing_id
+        description: "filing_id of the annual amendment for this reporting year."
+      - name: annual_filing_date
+        description: "date_submitted of the annual amendment."
+      - name: latest_filing_id
+        description: "filing_id of the most recent filing within this reporting year (annual or other-amendment)."
+      - name: latest_filing_date
+        description: "date_submitted of the latest filing within this reporting year."
+      - name: is_superseded_by_amendment
+        description: "True when an other-amendment was filed after the annual, making it the latest state for this year."
+
+  - name: int_service_provider_links
+    description: >
+      Long-format union of every service-provider mention across all ERA filings.
+      Each row preserves the (filing_id, reference_id) link back to the ERA, plus
+      a canonical_id that identifies the same provider across rows whose raw names disagree.

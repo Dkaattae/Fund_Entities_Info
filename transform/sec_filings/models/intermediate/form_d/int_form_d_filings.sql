@@ -77,6 +77,19 @@ select
     o.claims_506b,
     o.claims_506c,
 
+    -- EDGAR URLs (constructed from accession_number + CIK)
+    concat(
+        'https://www.sec.gov/Archives/edgar/data/',
+        pi.primary_issuer_cik, '/',
+        replace(s.accession_number, '-', ''), '/'
+    ) as edgar_filing_url,
+    case when s.file_num is not null
+        then concat(
+            'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&filenum=',
+            s.file_num, '&type=D&dateb=&owner=include&count=40'
+        )
+    end as edgar_fund_history_url,
+
     -- Derived "small / emerging" proxies (no thresholds applied — flags only)
     o.industry_group_type = 'Pooled Investment Fund'        as is_pooled_investment_fund,
     not s.over_100_persons                                  as has_under_100_persons,

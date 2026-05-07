@@ -4,3 +4,4 @@ google-cloud-bigquery-storage
 db-dtypes
 pandas
 pyarrow
+plotly>=5.20
