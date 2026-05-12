@@ -1,5 +1,58 @@
-with src as (
-    select * from {{ source('form_d_filings', 'related_persons') }}
+-- Explicit column selection prevents UNION ALL failures from differing
+-- physical column order between the quarterly and crawler BQ tables.
+
+with quarterly_accessions as (
+    select accessionnumber
+    from {{ source('form_d_filings', 'form_d_submission') }}
+),
+
+quarterly as (
+    select
+        accessionnumber,
+        relatedperson_seq_key,
+        firstname,
+        middlename,
+        lastname,
+        street1,
+        street2,
+        city,
+        stateorcountry,
+        stateorcountrydescription,
+        zipcode,
+        relationship_1,
+        relationship_2,
+        relationship_3,
+        relationshipclarification
+    from {{ source('form_d_filings', 'related_persons') }}
+    where accessionnumber is not null
+),
+
+daily as (
+    select
+        accessionnumber,
+        relatedperson_seq_key,
+        firstname,
+        middlename,
+        lastname,
+        street1,
+        street2,
+        city,
+        stateorcountry,
+        stateorcountrydescription,
+        zipcode,
+        relationship_1,
+        relationship_2,
+        relationship_3,
+        relationshipclarification
+    from {{ source('formd_crawler', 'related_persons') }}
+    where accessionnumber is not null
+      and accessionnumber not in (select accessionnumber from quarterly_accessions)
+),
+
+src as (
+    select * from quarterly
+    union all
+    select * from daily
 )
 
 select
@@ -23,12 +76,9 @@ select
     nullif(relationship_2, '')                               as relationship_2,
     nullif(relationship_3, '')                               as relationship_3,
     nullif(relationshipclarification, '')                    as relationship_clarification,
-    -- Promoter is the relationship that most often points to the adviser /
-    -- sponsor entity behind a Form D pooled-fund offering.
     'Promoter' in (
         nullif(relationship_1, ''),
         nullif(relationship_2, ''),
         nullif(relationship_3, '')
     )                                                        as is_promoter
 from src
-where accessionnumber is not null

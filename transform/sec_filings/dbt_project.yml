@@ -18,7 +18,8 @@ clean-targets:
 vars:
   state_raw_dataset:    "state_adviser"
   era_raw_dataset:      "era_adv"
-  form_d_raw_dataset:   "form_d_filings"
+  form_d_raw_dataset:     "form_d_filings"
+  form_d_crawler_dataset: "formd_filings_crawler"
   emerging_window_days: 180
   # Earliest year with complete ERA data in BigQuery.
   # service_provider_changes compares (backfill_start_year + 1) vs backfill_start_year.

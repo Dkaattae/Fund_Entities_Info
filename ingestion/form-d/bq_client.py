@@ -17,11 +17,12 @@ class BigQueryHandler:
         self.dataset = dataset
 
     def get_pending_submissions(self, table_name="formd_daily_submissions", limit=1000):
-        """Fetches rows that need parsing."""
+        """Fetches rows that need parsing, most recent filings first."""
         query = f"""
-            SELECT cik, submission_num, accession_clean, path 
+            SELECT cik, submission_num, accession_clean, path
             FROM `{self.project}.{self.dataset}.{table_name}`
             WHERE status = 'PENDING'
+            ORDER BY Date DESC
             LIMIT {limit}
         """
         return self.client.query(query).to_dataframe()

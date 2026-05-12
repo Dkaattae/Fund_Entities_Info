@@ -104,3 +104,12 @@ sources:
       - name: issuer
       - name: offering
       - name: related_persons
+
+  - name: formd_crawler
+    database: "{{ target.project }}"
+    schema: "{{ var('form_d_crawler_dataset') }}"
+    tables:
+      - name: form_d_submission
+      - name: issuer
+      - name: offering
+      - name: related_persons

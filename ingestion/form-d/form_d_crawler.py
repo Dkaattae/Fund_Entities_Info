@@ -1,10 +1,13 @@
 import os
 import json
 import io
+from datetime import date, timedelta
+
 import pandas as pd
 import requests
 import time
 import dlt
+from google.cloud import bigquery
 
 service_account_json_str = os.getenv("BIGQUERY_SERVICE_ACCOUNT_JSON")
 
@@ -14,81 +17,132 @@ if not service_account_json_str:
 gcp_credentials = json.loads(service_account_json_str)
 project_id = gcp_credentials.get("project_id")
 
+DATASET = "formd_filings_crawler"
 
 headers = {
     "User-Agent": "KateChen xchencws@gmail.com",
     "Accept-Encoding": "gzip, deflate",
-    "Host": "www.sec.gov"
-    }
+    "Host": "www.sec.gov",
+}
+
+bq_client = bigquery.Client.from_service_account_info(gcp_credentials)
 
 
-def formd_by_date(start_date, end_date):
-    business_days = pd.bdate_range(start=start_date, end=end_date, inclusive='left')
-    formd_df_list = []
-    url_template = "https://www.sec.gov/Archives/edgar/daily-index/{year}/QTR{quarter}/master.{date}.idx"
-    for date in business_days:
-        date_str = date.strftime("%Y%m%d")
-        url = url_template.format(year=year, quarter=quarter, date=date_str)
+def _date_to_quarter(d: date) -> tuple[int, int]:
+    return d.year, (d.month - 1) // 3 + 1
+
+
+def formd_by_date(start_date, end_date) -> pd.DataFrame:
+    """Fetch Form D/D-A entries from EDGAR daily index files.
+
+    The URL path encodes the year and quarter of each individual date,
+    so the range can span a quarter boundary safely.
+    """
+    business_days = pd.bdate_range(start=start_date, end=end_date, inclusive="left")
+    rows = []
+    url_template = (
+        "https://www.sec.gov/Archives/edgar/daily-index"
+        "/{year}/QTR{quarter}/master.{date}.idx"
+    )
+    for ts in business_days:
+        d = ts.date()
+        yr, qtr = _date_to_quarter(d)
+        date_str = d.strftime("%Y%m%d")
+        url = url_template.format(year=yr, quarter=qtr, date=date_str)
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            # Skip the first 10 header rows of the .idx file
-            data = response.text.split('--------------------------------------------------------------------------------')[-1]
-            
-            # Load into DataFrame
-            df = pd.read_csv(io.StringIO(data), sep='|', names=['CIK', 'Name', 'Form', 'Date', 'Path'])
-            
-            # 3. Filter for D and D/A
-            target_forms = ['D', 'D/A']
-            new_leads = df[df['Form'].str.strip().str.upper().isin(target_forms)]
-            
-            new_leads_list = new_leads.to_dict('records')
-            
-            formd_df_list.append(new_leads_list)
-            
+            body = response.text.split(
+                "--------------------------------------------------------------------------------"
+            )[-1]
+            df = pd.read_csv(
+                io.StringIO(body),
+                sep="|",
+                names=["CIK", "Name", "Form", "Date", "Path"],
+            )
+            target_forms = ["D", "D/A"]
+            hits = df[df["Form"].str.strip().str.upper().isin(target_forms)]
+            rows.extend(hits.to_dict("records"))
             time.sleep(0.1)
         else:
             print(f"Failed to retrieve data for {date_str}: {response.status_code}")
-        formd_df = pd.DataFrame([item for sublist in formd_df_list for item in sublist])
 
-    return formd_df
-
-def formd_by_quarter(year, quarter):
-    month = quarter * 3 - 2
-    start_date = f"{year}-{month}-01"
-    if quarter == 4:
-        end_date = f"{year+1}-01-01"
-    else:
-        end_date = f"{year}-{month+3}-01"
-    return formd_by_date(start_date, end_date)
+    return pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["CIK", "Name", "Form", "Date", "Path"]
+    )
 
 
+def get_last_crawled_date() -> date | None:
+    """Return the latest filing_date in the quarterly bulk dataset.
 
-def load_formd_data(year, quarter):
+    We use the quarterly dataset as the anchor because formd_daily_submissions
+    stores Form D filing dates (not crawl dates), so it's not a reliable
+    indicator of which daily index files have already been fetched.
+    """
+    query = f"""
+        SELECT MAX(SAFE.PARSE_DATE('%d-%b-%Y', filing_date)) AS max_date
+        FROM `{project_id}.form_d_filings.form_d_submission`
+    """
+    result = bq_client.query(query).to_dataframe()
+    val = result["max_date"].iloc[0]
+    if pd.isna(val):
+        return None
+    return pd.Timestamp(val).date()
+
+
+def load_formd_data(start_date: date, end_date: date):
     pipeline = dlt.pipeline(
         pipeline_name="sec_formd_pipeline",
         destination="bigquery",
-        dataset_name="formd_filings_crawler"
+        dataset_name=DATASET,
     )
 
-    formd_df = formd_by_quarter(year, quarter)
-    formd_df['status'] = 'PENDING'
-    formd_df['parsed_at'] = pd.NaT
-    formd_df['error_msg'] = None
-    formd_df['submission_num'] = formd_df['Path'].apply(lambda x: x.split('/')[-1].replace('.txt', ''))
-    formd_df['accession_clean'] = formd_df['submission_num'].str.replace('-', '')   
+    formd_df = formd_by_date(start_date, end_date)
+    if formd_df.empty:
+        print(f"No Form D filings found between {start_date} and {end_date}.")
+        return
+
+    formd_df["status"] = "PENDING"
+    formd_df["parsed_at"] = pd.NaT
+    formd_df["error_msg"] = None
+    formd_df["submission_num"] = formd_df["Path"].apply(
+        lambda x: x.split("/")[-1].replace(".txt", "")
+    )
+    formd_df["accession_clean"] = formd_df["submission_num"].str.replace("-", "")
 
     load_info = pipeline.run(
         formd_df,
         table_name="formd_daily_submissions",
         primary_key=["CIK", "Path"],
         write_disposition="merge",
-        credentials=gcp_credentials
+        credentials=gcp_credentials,
     )
-    
     print(load_info)
 
 
+def update_daily():
+    """Crawl from the day after the last loaded date up to yesterday."""
+    last = get_last_crawled_date()
+    today = date.today()
+
+    if last is None:
+        # Bootstrap: start from the beginning of the current quarter
+        yr, qtr = _date_to_quarter(today)
+        start_month = (qtr - 1) * 3 + 1
+        start = date(yr, start_month, 1)
+        print(f"No existing data. Bootstrapping from {start}.")
+    else:
+        start = last + timedelta(days=1)
+
+    # Don't try to fetch today — the daily index is published for completed days
+    end = today
+
+    if start >= end:
+        print(f"Already up to date (last crawled: {last}).")
+        return
+
+    print(f"Crawling Form D daily index from {start} to {end} (exclusive).")
+    load_formd_data(start, end)
+
+
 if __name__ == "__main__":
-    quarter = 1
-    year = 2026
-    load_formd_data(year, quarter)
+    update_daily()
