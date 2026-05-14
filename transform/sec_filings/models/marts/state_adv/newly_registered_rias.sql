@@ -1,51 +1,48 @@
 {{ config(materialized='table') }}
 
--- One row per RIA, capturing the very first time the firm appeared
--- anywhere in the state-adviser system. A firm registered in multiple
--- states still has a single first-seen event here.
+-- One row per state RIA: latest firm data joined with their earliest
+-- state registration date. Replaces the old dual-source pattern
+-- (stg_state_master + stg_state_firms) with a single source: stg_state_latest.
 
-with master as (
-    select * from {{ ref('stg_state_master') }}
+with latest as (
+    select * from {{ ref('stg_state_latest') }}
 ),
 
-latest_firm as (
+-- Earliest STATE registration date per firm — the true "first registered" date,
+-- independent of when we started ingesting the daily feed.
+first_registration as (
     select
-        firm_crd,
-        business_name,
-        legal_name,
-        main_state,
-        main_city,
-        main_country,
-        state_of_org,
-        aum_total,
-        aum_discretionary,
-        aum_non_discretionary,
-        total_employees,
-        snapshot_date as latest_snapshot_date,
-        row_number() over (partition by firm_crd order by snapshot_date desc) as rn
-    from {{ ref('stg_state_firms') }}
-),
-
-firm_latest as (
-    select * except (rn) from latest_firm where rn = 1
+        cast(firm_crd as string)                                         as firm_crd,
+        min(safe.parse_date('%Y-%m-%d', registration_date))             as first_registration_date
+    from {{ source('state_adviser', 'state_adviser_registrations_raw') }}
+    where registration_type = 'STATE'
+      and registration_date is not null
+      and registration_date != ''
+    group by firm_crd
 )
 
 select
-    m.firm_crd,
-    coalesce(f.business_name, m.business_name)         as business_name,
-    coalesce(f.legal_name, m.legal_name)               as legal_name,
-    coalesce(f.main_state, m.main_state)               as main_state,
-    coalesce(f.main_city, m.main_city)                 as main_city,
-    coalesce(f.main_country, m.main_country)           as main_country,
-    coalesce(f.state_of_org, m.state_of_org)           as state_of_org,
-    coalesce(f.aum_total, m.aum_total)                 as aum_total,
-    coalesce(f.aum_discretionary, m.aum_discretionary) as aum_discretionary,
-    coalesce(f.aum_non_discretionary, m.aum_non_discretionary) as aum_non_discretionary,
-    coalesce(f.total_employees, m.total_employees)     as total_employees,
-    m.status,
-    m.first_seen_date,
-    m.withdrawn_date,
-    m.last_observed_date
-from master m
-left join firm_latest f using (firm_crd)
-order by m.first_seen_date desc, m.firm_crd
+    l.firm_crd,
+    coalesce(l.business_name, l.legal_name) as business_name,
+    l.legal_name,
+    l.main_street1,
+    l.main_street2,
+    l.main_city,
+    l.main_state,
+    l.main_postal_code,
+    l.main_country,
+    l.main_phone,
+    l.websites,
+    l.state_of_org,
+    l.aum_total,
+    l.aum_discretionary,
+    l.aum_non_discretionary,
+    l.total_employees,
+    l.status,
+    r.first_registration_date,
+    l.first_seen_date,
+    l.withdrawn_date,
+    l.last_observed_date
+from latest l
+left join first_registration r using (firm_crd)
+order by r.first_registration_date desc, l.firm_crd

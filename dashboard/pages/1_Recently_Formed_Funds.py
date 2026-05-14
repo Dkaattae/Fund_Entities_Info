@@ -91,28 +91,34 @@ df = load_funds()
 # ---------------------------------------------------------------------------
 # Sidebar filters
 # ---------------------------------------------------------------------------
+SHARED_CONN_LABELS = ["0", "1–10", "10–30", "30+"]
+
+def _shared_conn_bucket(n) -> str:
+    if pd.isna(n) or n == 0:
+        return "0"
+    if n <= 10:
+        return "1–10"
+    if n <= 30:
+        return "10–30"
+    return "30+"
+
 with st.sidebar:
     st.header("Filters")
 
     type_options = sorted(df["investment_fund_type"].dropna().unique().tolist())
     selected_types = st.multiselect("Fund Type", type_options, default=type_options)
 
-    adviser_options = sorted(df["relationship_to_adviser"].dropna().unique().tolist())
-    adviser_labels = {
-        "adviser_also_new":   "Adviser also new",
-        "adviser_established": "Established adviser",
-        "no_adv_found":       "No adviser found",
-    }
-    selected_advisers = st.multiselect(
-        "Adviser Status",
-        adviser_options,
-        default=adviser_options,
-        format_func=lambda x: adviser_labels.get(x, x),
+    selected_buckets = st.multiselect(
+        "Shared Connections",
+        SHARED_CONN_LABELS,
+        default=SHARED_CONN_LABELS,
     )
+
+df["_shared_bucket"] = df["shared_fund_count"].apply(_shared_conn_bucket)
 
 filtered = df[
     df["investment_fund_type"].isin(selected_types) &
-    df["relationship_to_adviser"].isin(selected_advisers)
+    df["_shared_bucket"].isin(selected_buckets)
 ]
 
 # Summary strip
@@ -123,7 +129,7 @@ c3.metric("With shared-person connections", int((filtered["shared_fund_count"] >
 
 st.divider()
 
-# Main table — adviser status removed since it's already in the sidebar filter
+# Main table
 DISPLAY_COLS = {
     "primary_issuer_name":          "Fund Name",
     "filing_date":                  "Filed",

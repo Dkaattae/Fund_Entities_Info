@@ -55,6 +55,19 @@ latest_per_fund as (
     group by file_num
 ),
 
+-- First amendment where total_amount_sold crossed above 0 — captures the
+-- sale_date (Form D "date of first sale") and the filing date as a fallback
+first_raised_filing as (
+    select
+        file_num,
+        min(filing_date)               as first_raise_filing_date,
+        min_by(sale_date, filing_date) as first_sale_date
+    from funds
+    where total_amount_sold > 0
+      and file_num is not null
+    group by file_num
+),
+
 -- Dimensions taken from the initial filing (stable cohort classification)
 initial_dims as (
     select
@@ -127,14 +140,31 @@ select
     coalesce(l.latest_total_amount_sold, 0)         as latest_total_amount_sold,
     coalesce(l.latest_total_amount_sold, 0) > 0     as has_raised,
 
-    date_diff(l.latest_filing_date, i.initial_filing_date, day) as days_since_initial,
+    -- The actual date of first sale from Form D (coalesce to filing date if blank)
+    coalesce(fr.first_sale_date, fr.first_raise_filing_date) as first_sale_date,
 
-    -- Velocity: $ per day. Null for funds still at $0.
+    -- For raised funds: days from initial filing to date of first sale.
+    -- For still-$0 funds: days from initial filing to today (how long they've waited).
+    -- Late filers (sale_date < initial_filing_date) are excluded in the WHERE clause
+    -- so this diff is always >= 0.
     case
         when coalesce(l.latest_total_amount_sold, 0) > 0
-         and date_diff(l.latest_filing_date, i.initial_filing_date, day) > 0
+        then date_diff(
+            coalesce(fr.first_sale_date, fr.first_raise_filing_date),
+            i.initial_filing_date, day)
+        else date_diff(current_date(), i.initial_filing_date, day)
+    end as days_since_initial,
+
+    -- Velocity: $ per day using date-of-first-sale as denominator. Null for funds still at $0.
+    case
+        when coalesce(l.latest_total_amount_sold, 0) > 0
+         and date_diff(
+             coalesce(fr.first_sale_date, fr.first_raise_filing_date),
+             i.initial_filing_date, day) > 0
         then l.latest_total_amount_sold
-             / date_diff(l.latest_filing_date, i.initial_filing_date, day)
+             / date_diff(
+                 coalesce(fr.first_sale_date, fr.first_raise_filing_date),
+                 i.initial_filing_date, day)
     end as raising_velocity,
 
     -- Adviser cohort (mirrors form_d_first_raise)
@@ -166,16 +196,23 @@ select
     adv.adviser_entity_key
 
 from initial_filings i
-join latest_per_fund l  using (file_num)
-join initial_dims d     on d.accession_number = i.initial_accession_number
+join latest_per_fund l       using (file_num)
+join initial_dims d          on d.accession_number = i.initial_accession_number
+left join first_raised_filing fr using (file_num)
 -- Exclude funds with any shared related-person connection
 left join funds_with_shared_persons sp using (file_num)
-left join adviser adv   on adv.accession_number = i.initial_accession_number
-left join era_aum  ea   on ea.entity_key = adv.adviser_entity_key
-left join era_state es  on es.entity_key = adv.adviser_entity_key
+left join adviser adv        on adv.accession_number = i.initial_accession_number
+left join era_aum  ea        on ea.entity_key = adv.adviser_entity_key
+left join era_state es       on es.entity_key = adv.adviser_entity_key
 
 where coalesce(d.initial_amount_sold, 0) = 0
   and d.first_sale_yet_to_occur = true
   and sp.file_num is null                -- no shared person connections
   and i.initial_filing_date >= '2024-01-01'
+  -- Exclude late filers: sale_date before initial filing means the fund had
+  -- already raised before filing Form D and checked "yet to occur" incorrectly
+  and (
+    fr.first_sale_date is null
+    or fr.first_sale_date >= i.initial_filing_date
+  )
 order by raising_velocity desc nulls last

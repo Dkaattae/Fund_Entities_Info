@@ -14,5 +14,6 @@ from {{ ref('form_d_pooled_funds') }}
 where is_amendment_submission = false
   and filing_date >= '2024-01-01'
   and filing_date is not null
+  and date_trunc(filing_date, quarter) < date_trunc(current_date(), quarter)
 group by filing_quarter, quarter_label, fund_type
 order by filing_quarter, fund_type

@@ -61,10 +61,23 @@ select
     nullif(firstname, '')                                    as first_name,
     nullif(middlename, '')                                   as middle_name,
     nullif(lastname, '')                                     as last_name,
-    trim(concat(
-        coalesce(nullif(firstname, ''), ''), ' ',
-        coalesce(nullif(middlename, ''), ''), ' ',
-        coalesce(nullif(lastname, ''), '')
+    -- Build full_name, treating 'N/A' and 'NA' (any case) as missing
+    trim(regexp_replace(
+        concat(
+            coalesce(
+                case when regexp_contains(trim(firstname), r'(?i)^n\/?a$') then null
+                     else nullif(trim(firstname), '') end,
+                ''), ' ',
+            coalesce(
+                case when regexp_contains(trim(middlename), r'(?i)^n\/?a$') then null
+                     else nullif(trim(middlename), '') end,
+                ''), ' ',
+            coalesce(
+                case when regexp_contains(trim(lastname), r'(?i)^n\/?a$') then null
+                     else nullif(trim(lastname), '') end,
+                '')
+        ),
+        r'\s{2,}', ' '
     ))                                                       as full_name,
     nullif(street1, '')                                      as street1,
     nullif(street2, '')                                      as street2,

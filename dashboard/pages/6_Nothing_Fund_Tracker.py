@@ -84,6 +84,7 @@ def load_funds() -> pd.DataFrame:
             initial_filing_date,
             initial_filing_quarter_label,
             latest_filing_date,
+            first_sale_date,
             latest_total_amount_sold,
             has_raised,
             days_since_initial,
@@ -307,10 +308,10 @@ if selected:
     row = filtered.iloc[selected[0]]
     with st.expander("Detail", expanded=True):
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Raised",   fmt_money(row.get("latest_total_amount_sold")))
-        c2.metric("Velocity",       fmt_velocity(row.get("raising_velocity")))
-        c3.metric("Days Active",    str(row.get("days_since_initial")))
-        c4.metric("Investor Type",  row.get("investor_type") or "—")
+        c1.metric("Total Raised",     fmt_money(row.get("latest_total_amount_sold")))
+        c2.metric("Velocity",         fmt_velocity(row.get("raising_velocity")))
+        c3.metric("Days to 1st Sale", str(row.get("days_since_initial")) if row.get("has_raised") else f"{row.get('days_since_initial')} (waiting)")
+        c4.metric("Date of 1st Sale", str(row.get("first_sale_date")) if row.get("first_sale_date") and str(row.get("first_sale_date")) != "NaT" else "—")
 
         c5, c6, c7, c8 = st.columns(4)
         c5.metric("Adviser Cohort", COHORT_LABELS.get(row.get("adviser_cohort"), "—"))

@@ -87,7 +87,7 @@ select
 
     r.first_raise_date,
     r.first_raise_amount,
-    date_diff(r.first_raise_date, i.initial_filing_date, day) as days_to_first_raise,
+    greatest(date_diff(r.first_raise_date, i.initial_filing_date, day), 0) as days_to_first_raise,
 
     -- Was the adviser already active before this fund filed?
     case

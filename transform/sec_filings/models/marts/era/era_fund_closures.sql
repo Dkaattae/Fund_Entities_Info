@@ -136,13 +136,14 @@ adviser_info as (
     from {{ ref('era_latest_filing') }}
 ),
 
--- Fund name from Form D for fund_removed rows
+-- Fund name from Form D for fund_removed rows — use all Form D filings so
+-- older and non-pooled funds still get a name resolved from their file_num
 fund_meta as (
     select distinct
         file_num,
         any_value(primary_issuer_name)      as fund_name,
         any_value(edgar_fund_history_url)   as edgar_fund_history_url
-    from {{ ref('form_d_pooled_funds') }}
+    from {{ ref('int_form_d_filings') }}
     where file_num is not null
     group by file_num
 )
