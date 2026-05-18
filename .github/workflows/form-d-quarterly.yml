@@ -1,8 +1,8 @@
 name: Form D Quarterly
 
 on:
-  # schedule:
-  #   - cron: "0 8 4-31 1,4,7,10 *"  # daily from 4th to end of Jan/Apr/Jul/Oct 08:00 UTC; flow self-skips once loaded
+  schedule:
+    - cron: "0 8 4-31 1,4,7,10 *"  # daily from 4th to end of Jan/Apr/Jul/Oct 08:00 UTC; flow self-skips once loaded
   workflow_dispatch:
 
 jobs:

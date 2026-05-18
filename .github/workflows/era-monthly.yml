@@ -1,8 +1,8 @@
 name: ERA Monthly
 
 on:
-  # schedule:
-  #   - cron: "0 6 5-31 * *"  # daily from 5th to end of month 06:00 UTC; flow self-skips once loaded
+  schedule:
+    - cron: "0 6 5-31 * *"  # daily from 5th to end of month 06:00 UTC; flow self-skips once loaded
   workflow_dispatch:
 
 jobs:
