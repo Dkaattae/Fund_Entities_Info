@@ -209,6 +209,7 @@ where coalesce(d.initial_amount_sold, 0) = 0
   and d.first_sale_yet_to_occur = true
   and sp.file_num is null                -- no shared person connections
   and i.initial_filing_date >= '2024-01-01'
+  and i.initial_filing_date <= date_sub(current_date(), interval 90 day)
   -- Exclude late filers: sale_date before initial filing means the fund had
   -- already raised before filing Form D and checked "yet to occur" incorrectly
   and (

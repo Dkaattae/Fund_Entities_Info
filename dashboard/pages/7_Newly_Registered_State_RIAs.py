@@ -12,12 +12,12 @@ st.caption(
     "Data sourced from the SEC IA_FIRM_STATE feed, updated daily."
 )
 
-AUM_BUCKET_ORDER = ["No AUM", "<$1M", "$1M–$10M", "$10M–$100M", "$100M+"]
+AUM_BUCKET_ORDER = ["No AUM (0 or empty)", "<$1M", "$1M–$10M", "$10M–$100M", "$100M+"]
 
 
 def aum_bucket(aum) -> str:
     if pd.isna(aum) or aum == 0:
-        return "No AUM"
+        return "No AUM (0 or empty)"
     if aum < 1_000_000:
         return "<$1M"
     if aum < 10_000_000:
