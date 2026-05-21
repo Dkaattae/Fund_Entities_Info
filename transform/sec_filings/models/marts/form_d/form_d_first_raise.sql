@@ -32,11 +32,13 @@ initial_filings as (
     group by file_num
 ),
 
--- First filing where total_amount_sold crosses above 0
+-- First filing where total_amount_sold crosses above 0.
+-- first_raise_date = sale_date from that filing (actual date of first sale,
+-- not the filing submission date which can lag by months).
 first_raise as (
     select
         file_num,
-        min(filing_date)                       as first_raise_date,
+        min_by(sale_date,         filing_date) as first_raise_date,
         min_by(total_amount_sold, filing_date) as first_raise_amount
     from funds
     where total_amount_sold > 0
