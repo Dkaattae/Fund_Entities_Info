@@ -15,14 +15,14 @@ filing_history as (
     select
         filing_id,
         entity_key,
-        annual_amendment_fiscal_year
+        fiscal_year
     from {{ ref('era_filing_history') }}
-    where is_annual_amendment_era          = true
-      and annual_amendment_fiscal_year     is not null
+    where is_annual_amendment_era = true
+      and fiscal_year is not null
 ),
 
 current_fy as (
-    select max(annual_amendment_fiscal_year) as yr from filing_history
+    select max(fiscal_year) as yr from filing_history
 ),
 
 provider_filings as (
@@ -30,7 +30,7 @@ provider_filings as (
         l.canonical_id,
         l.provider_type,
         f.entity_key,
-        f.annual_amendment_fiscal_year as fiscal_year
+        f.fiscal_year
     from links l
     join filing_history f using (filing_id)
 ),

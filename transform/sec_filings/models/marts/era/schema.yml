@@ -4,7 +4,7 @@ models:
   - name: era_latest_filing
     description: >
       One row per ERA entity (CRD, fallback SEC adviser #) — most recent filing of any type.
-      Includes amendment type flags and annual_amendment_fiscal_year from era_filing_history,
+      Includes amendment type flags and fiscal_year from era_filing_history,
       plus address/org fields joined from stg_era_base.
     columns:
       - name: entity_key

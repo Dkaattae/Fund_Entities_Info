@@ -13,12 +13,12 @@ with history as (
 annuals as (
     select
         entity_key,
-        filing_id                    as annual_filing_id,
-        date_submitted               as annual_filing_date,
-        annual_amendment_fiscal_year as reporting_year
+        filing_id      as annual_filing_id,
+        date_submitted as annual_filing_date,
+        fiscal_year    as reporting_year
     from history
     where is_annual_amendment_era
-      and annual_amendment_fiscal_year is not null
+      and fiscal_year is not null
 ),
 
 -- Other-amendments inherit the reporting year of the most recent prior annual

@@ -17,10 +17,9 @@ filing_history as (
 
 -- Current reporting year: most recent fiscal year with annual amendments.
 current_year as (
-    select max(annual_amendment_fiscal_year) as yr
+    select max(fiscal_year) as yr
     from {{ ref('era_filing_history') }}
     where is_annual_amendment_era
-      and annual_amendment_fiscal_year is not null
 ),
 
 -- Map month name to month number
@@ -64,7 +63,7 @@ filed_current_year as (
     from filing_history h
     cross join current_year c
     where (h.is_annual_amendment_era or h.is_other_amendment_era)
-      and h.annual_amendment_fiscal_year = c.yr
+      and h.fiscal_year = c.yr
 ),
 
 -- Compute due date per adviser and flag overdue ones

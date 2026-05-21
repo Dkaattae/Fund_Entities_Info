@@ -59,6 +59,12 @@ def load_yoy(provider_type: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("Filters")
+    country_filter = st.radio(
+        "Country",
+        options=["All", "US only", "Non-US only"],
+        index=0,
+        help="US = country is 'United States' or blank; Non-US = all others.",
+    )
     min_clients = st.number_input(
         "Min advisers (this year)",
         min_value=0,
@@ -83,6 +89,13 @@ for tab, (label, ptype) in zip(tabs, PROVIDER_TYPES.items()):
 
         report_year = int(df["report_year"].iloc[0])
         prior_year  = report_year - 1
+
+        # Apply country filter
+        is_us = df["country"].str.strip().str.lower().isin(["united states", "us", ""]) | df["country"].isna()
+        if country_filter == "US only":
+            df = df[is_us].copy()
+        elif country_filter == "Non-US only":
+            df = df[~is_us].copy()
 
         # Apply min filter
         df = df[df["count_this_year"] >= min_clients].copy()

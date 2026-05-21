@@ -43,7 +43,7 @@ select
     l.is_annual_amendment_era,
     l.is_other_amendment_era,
     l.is_initial_sec_era,
-    l.annual_amendment_fiscal_year,
+    l.fiscal_year,
     case when l.firm_crd is not null
         then concat('https://www.adviserinfo.sec.gov/Firm/', l.firm_crd)
     end as iapd_url
