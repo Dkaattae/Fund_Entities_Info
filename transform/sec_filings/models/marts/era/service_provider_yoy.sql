@@ -21,8 +21,16 @@ filing_history as (
       and fiscal_year is not null
 ),
 
+-- After March the prior year's filing season is complete; use it as "this year".
+-- On/before March we are still in filing season so the max year is current.
 current_fy as (
-    select max(fiscal_year) as yr from filing_history
+    select
+        case
+            when extract(month from current_date()) > 3
+                then max(fiscal_year) - 1
+            else max(fiscal_year)
+        end as yr
+    from filing_history
 ),
 
 provider_filings as (

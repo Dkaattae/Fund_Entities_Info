@@ -24,10 +24,14 @@ add service provider table to neo4j.
 # Use Case
 ### dashboard
 showing predefind questions like
-1, recent formed funds based on form d
+1, recent formed funds based on form d, and fund closure in form adv comparison
 2, fund changing service provider alert
 3, count of fund forming by time
 4, money raised in first round by time
+5, sec era fund using non pcaob auditors
+6, missing era filings
+7, missing auditing report and not filing amendment in time
+
 ### recommendation
 service provider bundle recommendation
 ### chatbot
