@@ -30,9 +30,19 @@ def load_by_quarter() -> pd.DataFrame:
     """).to_dataframe()
 
 
+-- Valid US state/territory 2-letter codes (excludes DE registered-agent noise
+-- and EDGAR non-US codes like E9, N4, X2 etc.)
+_US_STATES = (
+    "AL,AK,AZ,AR,CA,CO,CT,DE,FL,GA,HI,ID,IL,IN,IA,KS,KY,LA,ME,MD,MA,MI,MN,"
+    "MS,MO,MT,NE,NV,NH,NJ,NM,NY,NC,ND,OH,OK,OR,PA,RI,SC,SD,TN,TX,UT,VT,"
+    "VA,WA,WV,WI,WY,DC"
+).split(",")
+
+
 @st.cache_data(ttl=3600)
 def load_state_map() -> pd.DataFrame:
     client, project = bq_client()
+    us_list = ", ".join(f"'{s}'" for s in _US_STATES)
     return client.query(f"""
         SELECT
             primary_issuer_state                        AS state,
@@ -41,8 +51,7 @@ def load_state_map() -> pd.DataFrame:
         FROM `{project}.sec_filings_marts.form_d_pooled_funds`
         WHERE is_amendment_submission = false
           AND filing_date >= '2025-04-01'
-          AND primary_issuer_state IS NOT NULL
-          AND primary_issuer_state NOT LIKE 'X%'
+          AND primary_issuer_state IN ({us_list})
         GROUP BY state, fund_type
         ORDER BY fund_count DESC
     """).to_dataframe()
