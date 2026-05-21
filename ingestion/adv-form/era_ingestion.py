@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Iterator
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from google.cloud import bigquery
 
 from util import generate_months
 from util import filing_dates
@@ -179,26 +180,24 @@ def update_monthly():
     target_year, target_month = last_completed_month.year, last_completed_month.month
 
     # 2. Get the last processed month from the DB
-    # We use pipeline.sql_client to query the destination directly
-    with pipeline.sql_client() as client:
-        try:
-            query = f"""
-                SELECT 
-                    EXTRACT(YEAR FROM MAX(date_submitted)) as year,
-                    EXTRACT(MONTH FROM MAX(date_submitted)) as month
-                FROM `{project_id}.era_adv.base`
-            """
-            with client.execute_query(query) as cursor:
-                row = cursor.fetchone()
-                if row and row[0] is not None:
-                    db_year, db_month = row
-                    start_date = datetime(db_year, db_month, 1) + relativedelta(months=1)
-                else:
-                    print("No data found in DB. Consider running backfill first.")
-                    return
-        except Exception as e:
-            print(f"Table might not exist yet: {e}")
+    bq_client = bigquery.Client.from_service_account_info(gcp_credentials)
+    query = f"""
+        SELECT
+            EXTRACT(YEAR FROM MAX(date_submitted)) as year,
+            EXTRACT(MONTH FROM MAX(date_submitted)) as month
+        FROM `{project_id}.era_adv.base`
+    """
+    try:
+        row = next(iter(bq_client.query(query).result()))
+        if row[0] is not None:
+            db_year, db_month = int(row[0]), int(row[1])
+            start_date = datetime(db_year, db_month, 1) + relativedelta(months=1)
+        else:
+            print("No data found in DB. Consider running backfill first.")
             return
+    except Exception as e:
+        print(f"Table might not exist yet: {e}")
+        return
 
     # 3. Check if we are already up to date
     if start_date > last_completed_month:

@@ -9,3 +9,4 @@ pyarrow
 dlt[bigquery]
 prefect
 dbt-bigquery
+xmltodict
