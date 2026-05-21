@@ -35,14 +35,15 @@ def load_state_map() -> pd.DataFrame:
     client, project = bq_client()
     return client.query(f"""
         SELECT
-            primary_issuer_state   AS state,
-            COUNT(*)               AS fund_count
+            primary_issuer_state                        AS state,
+            COALESCE(investment_fund_type, 'Unknown')   AS fund_type,
+            COUNT(*)                                    AS fund_count
         FROM `{project}.sec_filings_marts.form_d_pooled_funds`
         WHERE is_amendment_submission = false
           AND filing_date >= '2025-04-01'
           AND primary_issuer_state IS NOT NULL
           AND primary_issuer_state NOT LIKE 'X%'
-        GROUP BY state
+        GROUP BY state, fund_type
         ORDER BY fund_count DESC
     """).to_dataframe()
 
@@ -147,7 +148,12 @@ st.divider()
 st.subheader("Fund Formation by State")
 st.caption("US-only initial Form D filings from 2025-Q2 onward, including Form D daily data.")
 
-state_df = load_state_map()
+state_df_raw = load_state_map()
+state_df = (
+    state_df_raw[state_df_raw["fund_type"].isin(selected_types)]
+    .groupby("state", as_index=False)["fund_count"].sum()
+    .sort_values("fund_count", ascending=False)
+)
 
 if state_df.empty:
     st.info("No state data available.")
