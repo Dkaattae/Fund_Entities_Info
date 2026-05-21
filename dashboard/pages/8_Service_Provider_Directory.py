@@ -9,7 +9,7 @@ st.set_page_config(page_title="Service Provider Directory", layout="wide")
 st.title("Service Provider Directory")
 st.caption(
     "Year-over-year adviser count per service provider, sourced from SEC ERA (Form ADV) annual filings. "
-    "Each count is the number of distinct registered advisers that reported using the provider in that calendar year."
+    "Each count is the number of distinct registered advisers that reported using the provider in that fiscal year."
 )
 
 PROVIDER_TYPES = {

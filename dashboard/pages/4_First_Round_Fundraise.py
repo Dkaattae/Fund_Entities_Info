@@ -90,12 +90,19 @@ if df.empty:
 
 df["adviser_cohort_label"] = df["adviser_cohort"].map(COHORT_LABELS).fillna(df["adviser_cohort"])
 df["_shared_bucket"] = df["shared_fund_count"].apply(_shared_conn_bucket)
+df["_is_us"] = ~df["primary_issuer_state"].fillna("X").str.startswith("X")
 
 # ---------------------------------------------------------------------------
 # Filters
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("Filters")
+
+    location_filter = st.radio(
+        "Fund Location",
+        options=["All", "US only", "Non-US only"],
+        index=0,
+    )
 
     selected_buckets = st.multiselect(
         "Shared Connections",
@@ -116,7 +123,14 @@ with st.sidebar:
         help="Funds raising over $100M are typically SEC-registered RIAs, not ERA filers.",
     )
 
+location_mask = (
+    df["_is_us"] if location_filter == "US only" else
+    ~df["_is_us"] if location_filter == "Non-US only" else
+    pd.Series(True, index=df.index)
+)
+
 filtered = df[
+    location_mask &
     df["_shared_bucket"].isin(selected_buckets) &
     df["investment_fund_type"].isin(selected_types) &
     (df["days_to_first_raise"] <= days_range)
