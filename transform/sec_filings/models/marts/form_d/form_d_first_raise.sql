@@ -46,6 +46,21 @@ first_raise as (
     group by file_num
 ),
 
+-- Shared related-person connections: count of other pooled funds that share
+-- at least one named related person with the initial filing of this fund.
+shared_connections as (
+    select
+        rp1.accession_number,
+        count(distinct f2.file_num) as shared_fund_count
+    from {{ ref('stg_form_d_related_persons') }} rp1
+    join {{ ref('stg_form_d_related_persons') }} rp2
+        on  rp1.full_name        = rp2.full_name
+        and rp1.accession_number != rp2.accession_number
+    join {{ ref('form_d_pooled_funds') }} f2
+        on rp2.accession_number = f2.accession_number
+    group by rp1.accession_number
+),
+
 adviser as (
     select * from {{ ref('int_form_d_adviser_link') }}
 ),
@@ -131,15 +146,17 @@ select
     end as adviser_cohort,
 
     ea.adviser_aum,
-    es.state_registration_count          as adviser_state_registration_count,
+    es.state_registration_count              as adviser_state_registration_count,
     adv.adviser_legal_name,
-    adv.adviser_entity_key
+    adv.adviser_entity_key,
+    coalesce(sc.shared_fund_count, 0)        as shared_fund_count
 
 from initial_filings i
-join first_raise r    using (file_num)
-join funds d          on d.accession_number = i.initial_accession_number
-left join adviser adv on adv.accession_number    = i.initial_accession_number
-left join era_aum  ea on ea.entity_key           = adv.adviser_entity_key
-left join era_state es on es.entity_key          = adv.adviser_entity_key
+join first_raise r        using (file_num)
+join funds d              on d.accession_number  = i.initial_accession_number
+left join adviser adv     on adv.accession_number = i.initial_accession_number
+left join era_aum  ea     on ea.entity_key        = adv.adviser_entity_key
+left join era_state es    on es.entity_key        = adv.adviser_entity_key
+left join shared_connections sc on sc.accession_number = i.initial_accession_number
 where i.initial_filing_date >= '2024-01-01'
 order by r.first_raise_amount desc nulls last

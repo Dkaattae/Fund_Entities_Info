@@ -63,10 +63,23 @@ def load_first_raise() -> pd.DataFrame:
             adviser_cohort,
             adviser_aum,
             adviser_state_registration_count,
-            adviser_legal_name
+            adviser_legal_name,
+            shared_fund_count
         FROM `{project}.sec_filings_marts.form_d_first_raise`
         ORDER BY first_raise_amount DESC NULLS LAST
     """).to_dataframe()
+
+
+SHARED_CONN_LABELS = ["0", "1–10", "10–30", "30+"]
+
+def _shared_conn_bucket(n) -> str:
+    if pd.isna(n) or n == 0:
+        return "0"
+    if n <= 10:
+        return "1–10"
+    if n <= 30:
+        return "10–30"
+    return "30+"
 
 
 df = load_first_raise()
@@ -76,6 +89,7 @@ if df.empty:
     st.stop()
 
 df["adviser_cohort_label"] = df["adviser_cohort"].map(COHORT_LABELS).fillna(df["adviser_cohort"])
+df["_shared_bucket"] = df["shared_fund_count"].apply(_shared_conn_bucket)
 
 # ---------------------------------------------------------------------------
 # Filters
@@ -83,8 +97,11 @@ df["adviser_cohort_label"] = df["adviser_cohort"].map(COHORT_LABELS).fillna(df["
 with st.sidebar:
     st.header("Filters")
 
-    quarters = sorted(df["initial_filing_quarter_label"].dropna().unique())
-    selected_quarters = st.multiselect("Quarter (initial filing)", quarters, default=quarters)
+    selected_buckets = st.multiselect(
+        "Shared Connections",
+        SHARED_CONN_LABELS,
+        default=SHARED_CONN_LABELS,
+    )
 
     fund_types = sorted(df["investment_fund_type"].dropna().unique())
     selected_types = st.multiselect("Fund Type", fund_types, default=fund_types)
@@ -100,7 +117,7 @@ with st.sidebar:
     )
 
 filtered = df[
-    df["initial_filing_quarter_label"].isin(selected_quarters) &
+    df["_shared_bucket"].isin(selected_buckets) &
     df["investment_fund_type"].isin(selected_types) &
     (df["days_to_first_raise"] <= days_range)
 ].copy()
@@ -248,16 +265,17 @@ st.divider()
 st.subheader("Top Raises")
 
 display = pd.DataFrame({
-    "Fund":             filtered["primary_issuer_name"],
-    "First Raise":      filtered["first_raise_amount"].apply(fmt_aum),
-    "Days to Raise":    filtered["days_to_first_raise"].astype("Int64"),
-    "Fund Type":        filtered["investment_fund_type"].fillna("—"),
-    "Investor Exempt.": filtered["investor_exemption"],
-    "Offering Exempt.": filtered["offering_exemption"],
-    "Adviser Cohort":   filtered["adviser_cohort_label"],
-    "Adviser":          filtered["adviser_legal_name"].fillna("—"),
-    "Quarter":          filtered["initial_filing_quarter_label"],
-    "State":            filtered["primary_issuer_state"].fillna("—"),
+    "Fund":               filtered["primary_issuer_name"],
+    "First Raise":        filtered["first_raise_amount"].apply(fmt_aum),
+    "Days to Raise":      filtered["days_to_first_raise"].astype("Int64"),
+    "Shared Connections": filtered["shared_fund_count"].astype("Int64"),
+    "Fund Type":          filtered["investment_fund_type"].fillna("—"),
+    "Investor Exempt.":   filtered["investor_exemption"],
+    "Offering Exempt.":   filtered["offering_exemption"],
+    "Adviser Cohort":     filtered["adviser_cohort_label"],
+    "Adviser":            filtered["adviser_legal_name"].fillna("—"),
+    "Quarter":            filtered["initial_filing_quarter_label"],
+    "State":              filtered["primary_issuer_state"].fillna("—"),
 })
 
 event = st.dataframe(
