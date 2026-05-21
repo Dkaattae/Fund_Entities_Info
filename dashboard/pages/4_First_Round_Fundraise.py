@@ -91,6 +91,9 @@ if df.empty:
 df["adviser_cohort_label"] = df["adviser_cohort"].map(COHORT_LABELS).fillna(df["adviser_cohort"])
 df["_shared_bucket"] = df["shared_fund_count"].apply(_shared_conn_bucket)
 df["_is_us"] = ~df["primary_issuer_state"].fillna("X").str.startswith("X")
+df["display_fund_type"] = df["primary_issuer_name"].str.lower().str.contains(
+    "a series of", na=False
+).map({True: "Platform / Syndicate", False: None}).fillna(df["investment_fund_type"])
 
 # ---------------------------------------------------------------------------
 # Filters
@@ -110,7 +113,7 @@ with st.sidebar:
         default=SHARED_CONN_LABELS,
     )
 
-    fund_types = sorted(df["investment_fund_type"].dropna().unique())
+    fund_types = sorted(df["display_fund_type"].dropna().unique())
     selected_types = st.multiselect("Fund Type", fund_types, default=fund_types)
 
     max_days = int(df["days_to_first_raise"].max()) if df["days_to_first_raise"].notna().any() else 365
@@ -132,7 +135,7 @@ location_mask = (
 filtered = df[
     location_mask &
     df["_shared_bucket"].isin(selected_buckets) &
-    df["investment_fund_type"].isin(selected_types) &
+    df["display_fund_type"].isin(selected_types) &
     (df["days_to_first_raise"] <= days_range)
 ].copy()
 
@@ -212,9 +215,10 @@ col_l, col_r = st.columns(2)
 with col_l:
     st.subheader("Median Raise by Fund Type")
     type_agg = (
-        filtered.groupby("investment_fund_type")["first_raise_amount"]
+        filtered.groupby("display_fund_type")["first_raise_amount"]
         .agg(median="median", count="count")
         .reset_index()
+        .rename(columns={"display_fund_type": "investment_fund_type"})
         .sort_values("median", ascending=False)
     )
     fig_type = px.bar(
@@ -283,7 +287,7 @@ display = pd.DataFrame({
     "First Raise":        filtered["first_raise_amount"].apply(fmt_aum),
     "Days to Raise":      filtered["days_to_first_raise"].astype("Int64"),
     "Shared Connections": filtered["shared_fund_count"].astype("Int64"),
-    "Fund Type":          filtered["investment_fund_type"].fillna("—"),
+    "Fund Type":          filtered["display_fund_type"].fillna("—"),
     "Investor Exempt.":   filtered["investor_exemption"],
     "Offering Exempt.":   filtered["offering_exemption"],
     "Adviser Cohort":     filtered["adviser_cohort_label"],
