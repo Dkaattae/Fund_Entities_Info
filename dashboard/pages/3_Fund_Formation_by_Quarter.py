@@ -1,5 +1,6 @@
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from bq import bq_client
@@ -26,6 +27,23 @@ def load_by_quarter() -> pd.DataFrame:
         SELECT quarter_label, fund_type, fund_count
         FROM `{project}.sec_filings_marts.form_d_new_funds_by_quarter`
         ORDER BY filing_quarter, fund_type
+    """).to_dataframe()
+
+
+@st.cache_data(ttl=3600)
+def load_state_map() -> pd.DataFrame:
+    client, project = bq_client()
+    return client.query(f"""
+        SELECT
+            primary_issuer_state   AS state,
+            COUNT(*)               AS fund_count
+        FROM `{project}.sec_filings_marts.form_d_pooled_funds`
+        WHERE is_amendment_submission = false
+          AND filing_date >= '2025-04-01'
+          AND primary_issuer_state IS NOT NULL
+          AND primary_issuer_state NOT LIKE 'X%'
+        GROUP BY state
+        ORDER BY fund_count DESC
     """).to_dataframe()
 
 
@@ -120,3 +138,55 @@ with st.expander("Raw data"):
     ).reset_index()
     pivot["Total"] = pivot.drop(columns="quarter_label").sum(axis=1)
     st.dataframe(pivot, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ---------------------------------------------------------------------------
+# US state heatmap — 2025 Q2 through current (includes Form D daily data)
+# ---------------------------------------------------------------------------
+st.subheader("Fund Formation by State")
+st.caption("US-only initial Form D filings from 2025-Q2 onward, including Form D daily data.")
+
+state_df = load_state_map()
+
+if state_df.empty:
+    st.info("No state data available.")
+else:
+    fig_map = px.choropleth(
+        state_df,
+        locations="state",
+        locationmode="USA-states",
+        color="fund_count",
+        scope="usa",
+        color_continuous_scale="Blues",
+        labels={"fund_count": "New Funds", "state": "State"},
+        hover_data={"state": True, "fund_count": True},
+    )
+    fig_map.update_layout(
+        height=500,
+        margin=dict(l=0, r=0, t=0, b=0),
+        coloraxis_colorbar=dict(title="New Funds"),
+    )
+    st.plotly_chart(fig_map, use_container_width=True)
+
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.subheader("Top 10 States")
+        st.dataframe(
+            state_df.head(10).rename(columns={"state": "State", "fund_count": "New Funds"}),
+            use_container_width=True,
+            hide_index=True,
+        )
+    with col_r:
+        fig_bar = px.bar(
+            state_df.head(15).sort_values("fund_count"),
+            x="fund_count",
+            y="state",
+            orientation="h",
+            labels={"fund_count": "New Funds", "state": ""},
+            color="fund_count",
+            color_continuous_scale="Blues",
+            title="Top 15 States",
+        )
+        fig_bar.update_layout(height=420, showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_bar, use_container_width=True)
