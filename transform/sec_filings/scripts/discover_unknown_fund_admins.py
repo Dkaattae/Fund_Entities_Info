@@ -56,7 +56,7 @@ def append_to_seed(path: Path, new_rows: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="sec_filings", help="BigQuery dataset name")
+    parser.add_argument("--dataset", default="sec_filings_intermediate", help="BigQuery dataset name")
     args = parser.parse_args()
 
     creds_json = os.environ.get("BIGQUERY_SERVICE_ACCOUNT_JSON")

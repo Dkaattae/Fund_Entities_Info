@@ -101,13 +101,22 @@ unioned as (
     union all select * from custodians
 ),
 
--- Alias seed: known raw_name → canonical_name for FUND_ADMIN (no registry IDs exist).
--- Run scripts/discover_unknown_fund_admins.py to append new unknowns as placeholders.
-fund_admin_aliases as (
+-- Alias seed: known canonical_name entries for FUND_ADMIN (no registry IDs exist).
+-- Matching uses normalize_fund_admin_name() on both sides so that international
+-- office variants (e.g. "NAV FUND SERVICES CAYMAN LTD.") match seed entries
+-- (e.g. "NAV Fund Services") without requiring a seed row per office.
+-- Run scripts/discover_unknown_fund_admins.py to discover still-unmatched names.
+fund_admin_canonical_lookup as (
+    -- Index by normalize(raw_name) so that a filing's normalized raw_name
+    -- matches any seed row whose raw_name normalizes the same way.
+    -- E.g. seed row "NAV FUND SERVICES → NAV CONSULTING INC" covers
+    -- "NAV FUND SERVICES CAYMAN LTD." from a filing (both normalize to "nav").
     select
-        lower(trim(raw_name))  as raw_name_key,
-        canonical_name
+        {{ normalize_fund_admin_name('raw_name') }} as norm_key,
+        min(canonical_name) as canonical_name
     from {{ ref('fund_admin_aliases') }}
+    where canonical_name is not null and trim(canonical_name) != ''
+    group by 1
 ),
 
 with_normalized as (
@@ -116,6 +125,7 @@ with_normalized as (
         {{ normalize_provider_name('u.raw_name') }} as normalized_name,
         fa.canonical_name                            as alias_canonical_name,
         -- FUND_ADMIN: normalize the seed canonical_name if matched, else normalize raw_name.
+        -- Normalized matching means one seed entry covers all international offices.
         -- All other types: use normalized raw_name (city/country stay in their own columns).
         case
             when u.provider_type = 'FUND_ADMIN'
@@ -123,9 +133,10 @@ with_normalized as (
             else {{ normalize_provider_name('u.raw_name') }}
         end as effective_normalized_name
     from unioned u
-    left join fund_admin_aliases fa
+    left join fund_admin_canonical_lookup fa
         on  u.provider_type = 'FUND_ADMIN'
-        and lower(trim(u.raw_name)) = fa.raw_name_key
+        and {{ normalize_fund_admin_name('u.raw_name') }} = fa.norm_key
+        and {{ normalize_fund_admin_name('u.raw_name') }} != ''
 ),
 
 -- Per (normalized_name, provider_type): find the most authoritative registry id
