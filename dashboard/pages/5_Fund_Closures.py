@@ -45,6 +45,8 @@ def load_closures() -> pd.DataFrame:
             closure_signal,
             filing_date_current,
             filing_date_prior,
+            days_since_prior_filing,
+            is_late_filer,
             closure_quarter_label,
             form_d_file_number,
             fund_name,
@@ -81,18 +83,36 @@ with st.sidebar:
     quarters = sorted(df["closure_quarter_label"].dropna().unique())
     selected_quarters = st.multiselect("Quarter", quarters, default=quarters)
 
+    st.divider()
+    hide_late_filers = st.checkbox(
+        "Hide late filers (>18 months gap)",
+        value=False,
+        help=(
+            "Late filers filed their annual amendment more than 18 months after their previous one. "
+            "Their closure may have occurred much earlier than the Q1 spike suggests."
+        ),
+    )
+
 filtered = df[
     df["closure_signal"].isin(selected_signals) &
     df["closure_quarter_label"].isin(selected_quarters)
-]
+].copy()
+
+if hide_late_filers:
+    filtered = filtered[~filtered["is_late_filer"].fillna(False)]
 
 # ---------------------------------------------------------------------------
 # Summary metrics
 # ---------------------------------------------------------------------------
-c1, c2, c3 = st.columns(3)
+late_filer_count = int(filtered["is_late_filer"].fillna(False).sum())
+
+c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total closure events", len(filtered))
-c2.metric("Fund removed events", int((filtered["closure_signal"] == "fund_removed").sum()))
-c3.metric("AUM zeroed events",   int((filtered["closure_signal"] == "aum_zeroed").sum()))
+c2.metric("Fund removed events",  int((filtered["closure_signal"] == "fund_removed").sum()))
+c3.metric("AUM zeroed events",    int((filtered["closure_signal"] == "aum_zeroed").sum()))
+c4.metric("Late filers (>18 mo)", late_filer_count,
+          help="Advisers whose prior annual amendment was filed more than 18 months earlier. "
+               "Their detected closure date may lag the actual closure by a year or more.")
 
 st.divider()
 
@@ -131,17 +151,23 @@ st.divider()
 st.subheader("Closure Events")
 
 display = pd.DataFrame({
-    "Adviser":          filtered["business_name"].fillna(filtered["legal_name"]),
-    "Signal":           filtered["signal_label"],
-    "Detected":         filtered["filing_date_current"].astype(str),
-    "Prior Filing":     filtered["filing_date_prior"].astype(str),
-    "Quarter":          filtered["closure_quarter_label"],
-    "Fund":             filtered["fund_name"].fillna("—"),
-    "File No.":         filtered["form_d_file_number"].fillna("—"),
-    "AUM Before":       filtered["prior_aum"].apply(fmt_aum),
-    "AUM After":        filtered["current_aum"].apply(fmt_aum),
-    "City":             filtered["main_city"].fillna(""),
-    "State":            filtered["main_state"].fillna(""),
+    "Adviser":            filtered["business_name"].fillna(filtered["legal_name"]),
+    "Signal":             filtered["signal_label"],
+    "Detected":           filtered["filing_date_current"].astype(str),
+    "Prior Filing":       filtered["filing_date_prior"].astype(str),
+    "Days Since Prior":   filtered["days_since_prior_filing"].apply(
+                              lambda v: f"{int(v):,}" if pd.notna(v) else "—"
+                          ),
+    "Late Filer":         filtered["is_late_filer"].apply(
+                              lambda v: "⚠ Yes" if v else ""
+                          ),
+    "Quarter":            filtered["closure_quarter_label"],
+    "Fund":               filtered["fund_name"].fillna("—"),
+    "File No.":           filtered["form_d_file_number"].fillna("—"),
+    "AUM Before":         filtered["prior_aum"].apply(fmt_aum),
+    "AUM After":          filtered["current_aum"].apply(fmt_aum),
+    "City":               filtered["main_city"].fillna(""),
+    "State":              filtered["main_state"].fillna(""),
 })
 
 event = st.dataframe(

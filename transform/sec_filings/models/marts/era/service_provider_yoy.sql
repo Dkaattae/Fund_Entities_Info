@@ -1,24 +1,26 @@
 {{ config(materialized='table', tags=['era']) }}
 
 -- Year-over-year adviser count per service provider, bucketed by fiscal year.
--- "Fiscal year" = annual_amendment_fiscal_year from era_filing_history.
--- e.g. a firm with FYE 3/31/2026 filing in April 2026 is counted in FY 2025.
--- Only annual-amendment ERA filings are considered — those are the ones where
--- advisers formally report their service providers.
+--
+-- Filing resolution: uses int_era_annual_snapshot.latest_filing_id per
+-- (entity_key, reporting_year) so that other-amendments filed after the annual
+-- amendment are reflected in the count. Previously this joined directly to
+-- era_filing_history filtered to is_annual_amendment_era, which ignored
+-- provider changes reported in subsequent other-amendments.
 
 with links as (
     select * from {{ ref('int_service_provider_links') }}
     where canonical_id is not null
 ),
 
-filing_history as (
+-- One row per (entity_key, fiscal_year) with the latest filing_id for that year.
+-- latest_filing_id = annual_filing_id unless a later other-amendment supersedes it.
+snapshot as (
     select
-        filing_id,
         entity_key,
-        fiscal_year
-    from {{ ref('era_filing_history') }}
-    where is_annual_amendment_era = true
-      and fiscal_year is not null
+        reporting_year as fiscal_year,
+        latest_filing_id as filing_id
+    from {{ ref('int_era_annual_snapshot') }}
 ),
 
 -- After March the prior year's filing season is complete; use it as "this year".
@@ -30,17 +32,17 @@ current_fy as (
                 then max(fiscal_year) - 1
             else max(fiscal_year)
         end as yr
-    from filing_history
+    from snapshot
 ),
 
 provider_filings as (
     select
         l.canonical_id,
         l.provider_type,
-        f.entity_key,
-        f.fiscal_year
+        s.entity_key,
+        s.fiscal_year
     from links l
-    join filing_history f using (filing_id)
+    join snapshot s on s.filing_id = l.filing_id
 ),
 
 counts as (

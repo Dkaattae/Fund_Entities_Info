@@ -1,49 +1,45 @@
 {{ config(materialized='table') }}
 
--- Per (adviser, provider_type): compare the two most recent filings for each entity.
--- "Current" = most recent filing of any type (annual or other-amendment).
--- "Prior"   = the filing immediately before it in submission-date order.
---
--- This naturally handles both comparison cases:
---   - Latest is an annual    → prior is typically the prior year's latest amendment
---   - Latest is an amendment → prior is the annual (or amendment) it supersedes
+-- Per (adviser, provider_type): compare the two most recent fiscal-year snapshots.
+-- Uses int_era_annual_snapshot so that other-amendments within a fiscal year
+-- update that year's state rather than creating a new comparison point.
+-- Previously this compared rn=1 vs rn=2 across all raw filings, which could
+-- compare two filings within the same fiscal year and miss amendment-driven changes.
 --
 -- change_type values:
 --   new_adviser   – adviser's first-ever ERA filing (is_initial_sec_era)
---   no_prior_data – has a current filing but no prior one
+--   no_prior_data – has a current snapshot year but no prior year
 --   swapped       – providers added AND dropped
 --   added         – net new provider(s) only
 --   dropped       – provider(s) removed only
---   unchanged     – identical provider set between the two filings
+--   unchanged     – identical provider set between the two years
 
-with filing_history as (
-    select * from {{ ref('era_filing_history') }}
+with snapshot as (
+    select * from {{ ref('int_era_annual_snapshot') }}
 ),
 
--- Rank all filings per entity, most recent first
-ranked as (
-    select *,
-        row_number() over (
-            partition by entity_key
-            order by date_submitted desc nulls last, filing_id desc
-        ) as rn
-    from filing_history
-),
-
+-- Per adviser: their most recent fiscal year (latest_filing_id = annual + any amendments)
 current_filings as (
-    select entity_key,
-           filing_id      as filing_id_current,
-           date_submitted as filing_date_current
-    from ranked
-    where rn = 1
+    select
+        entity_key,
+        latest_filing_id   as filing_id_current,
+        latest_filing_date as filing_date_current
+    from snapshot
+    qualify row_number() over (
+        partition by entity_key order by reporting_year desc
+    ) = 1
 ),
 
+-- Per adviser: their second-most-recent fiscal year
 prior_filings as (
-    select entity_key,
-           filing_id      as filing_id_prior,
-           date_submitted as filing_date_prior
-    from ranked
-    where rn = 2
+    select
+        entity_key,
+        latest_filing_id   as filing_id_prior,
+        latest_filing_date as filing_date_prior
+    from snapshot
+    qualify row_number() over (
+        partition by entity_key order by reporting_year desc
+    ) = 2
 ),
 
 -- Adviser display info pulled from current filing
@@ -66,7 +62,7 @@ adviser_info as (
 -- New advisers: those whose form type is marked is_initial_sec_era
 new_advisers as (
     select distinct entity_key
-    from filing_history
+    from {{ ref('era_filing_history') }}
     where is_initial_sec_era
 ),
 

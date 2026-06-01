@@ -24,6 +24,32 @@ models:
       - name: is_superseded_by_amendment
         description: "True when an other-amendment was filed after the annual, making it the latest state for this year."
 
+  - name: int_era_annual_snapshot
+    description: >
+      One row per (entity_key, reporting_year): the fully-resolved state for that
+      fiscal year, built on top of int_era_filings_by_year. Content (AUM, fund list)
+      comes from latest_filing_id so that other-amendments filed after the annual
+      amendment are reflected before any downstream year-over-year comparisons.
+      Downstream models (era_fund_closures) should use this instead of comparing
+      raw consecutive filings.
+    columns:
+      - name: entity_key
+        description: "CRD number, or SEC adviser number where CRD is unavailable."
+      - name: reporting_year
+        description: "Fiscal year being reported on."
+      - name: latest_filing_id
+        description: "filing_id of the most recent filing in this year (annual or amendment)."
+      - name: latest_filing_date
+        description: "date_submitted of the latest filing."
+      - name: is_superseded_by_amendment
+        description: "True when an other-amendment was filed after the annual."
+      - name: assets_under_management
+        description: "AUM as reported in latest_filing_id."
+      - name: fund_file_numbers
+        description: "Array of Form D file numbers disclosed in latest_filing_id. NULL if none."
+      - name: fund_count
+        description: "Count of Form D file numbers in fund_file_numbers."
+
   - name: int_service_provider_links
     description: >
       Long-format union of every service-provider mention across all ERA filings.

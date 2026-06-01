@@ -7,7 +7,11 @@
 --   1. PCAOB number (auditors)
 --   2. SEC number  (brokers, marketers, custodians)
 --   3. LEI         (custodians)
---   4. fingerprint of normalized_name + city + country  (fund admins, others)
+--   4. FUND_ADMIN: NAME:<first 12 hex of MD5(normalized canonical name)>
+--      Seeds/fund_admin_aliases maps known raw_name → canonical_name.
+--      Unknown admins fall back to normalizing their own raw_name.
+--      City and country are excluded — same firm across offices stays one ID.
+--   5. NAME:<farm_fingerprint(type|normalized_name|city|country)>  (all other types)
 
 with auditors as (
     select
@@ -97,11 +101,31 @@ unioned as (
     union all select * from custodians
 ),
 
+-- Alias seed: known raw_name → canonical_name for FUND_ADMIN (no registry IDs exist).
+-- Run scripts/discover_unknown_fund_admins.py to append new unknowns as placeholders.
+fund_admin_aliases as (
+    select
+        lower(trim(raw_name))  as raw_name_key,
+        canonical_name
+    from {{ ref('fund_admin_aliases') }}
+),
+
 with_normalized as (
     select
         u.*,
-        {{ normalize_provider_name('raw_name') }} as normalized_name
+        {{ normalize_provider_name('u.raw_name') }} as normalized_name,
+        fa.canonical_name                            as alias_canonical_name,
+        -- FUND_ADMIN: normalize the seed canonical_name if matched, else normalize raw_name.
+        -- All other types: use normalized raw_name (city/country stay in their own columns).
+        case
+            when u.provider_type = 'FUND_ADMIN'
+                then {{ normalize_provider_name('coalesce(fa.canonical_name, u.raw_name)') }}
+            else {{ normalize_provider_name('u.raw_name') }}
+        end as effective_normalized_name
     from unioned u
+    left join fund_admin_aliases fa
+        on  u.provider_type = 'FUND_ADMIN'
+        and lower(trim(u.raw_name)) = fa.raw_name_key
 ),
 
 -- Per (normalized_name, provider_type): find the most authoritative registry id
@@ -135,6 +159,15 @@ with_raw_canonical as (
                 then concat('SEC:', w.sec_number)
             when w.lei is not null and w.lei != ''
                 then concat('LEI:', w.lei)
+            -- FUND_ADMIN: name-only hash (city/country excluded so same firm across offices
+            -- stays one ID). First 12 hex chars of MD5 keep IDs short and readable.
+            -- Seed alias wins; unknown firms fall back to their own normalized name.
+            when w.provider_type = 'FUND_ADMIN'
+                and w.effective_normalized_name is not null
+                and w.effective_normalized_name != ''
+                then concat('NAME:', substr(to_hex(md5(w.effective_normalized_name)), 1, 12))
+            -- All other types: include city + country in the fingerprint to disambiguate
+            -- providers with identical names in different markets.
             when w.normalized_name is not null and w.normalized_name != ''
                 then concat(
                     'NAME:',
@@ -157,6 +190,7 @@ select
     w.subreference_id,
     w.raw_name,
     w.normalized_name,
+    w.alias_canonical_name,
     w.sec_number,
     w.crd_number,
     w.pcaob_number,
@@ -165,9 +199,12 @@ select
     w.state,
     w.country,
     w.filing_month,
-    -- Upgrade NAME: ids to the authoritative registry id where known
+    -- Upgrade NAME: ids to the authoritative registry id where known.
+    -- Skipped for FUND_ADMIN — no registry IDs exist, upgrade would never fire anyway.
     case
-        when w.raw_canonical_id like 'NAME:%' and bc.authoritative_id is not null
+        when w.provider_type != 'FUND_ADMIN'
+            and w.raw_canonical_id like 'NAME:%'
+            and bc.authoritative_id is not null
             then bc.authoritative_id
         else w.raw_canonical_id
     end as canonical_id

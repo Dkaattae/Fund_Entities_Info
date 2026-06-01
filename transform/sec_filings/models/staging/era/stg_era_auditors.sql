@@ -5,7 +5,14 @@ with src as (
 select
     filing_id,
     reference_id,
-    nullif(name_of_auditing_firm, 'None')                  as raw_name,
+    -- Null out placeholder values (TBD, N/A, etc.) so they never get a canonical_id
+    case
+        when regexp_contains(
+            lower(trim(coalesce(name_of_auditing_firm, ''))),
+            r'^(tbd|to be determined|tba|to be announced|n/a|na|none|unknown|pending|not applicable|not yet determined|forthcoming)$'
+        ) then null
+        else nullif(trim(name_of_auditing_firm), 'None')
+    end                                                     as raw_name,
     nullif(city, 'None')                                   as city,
     nullif(state, 'None')                                  as state,
     nullif(country, 'None')                                as country,
