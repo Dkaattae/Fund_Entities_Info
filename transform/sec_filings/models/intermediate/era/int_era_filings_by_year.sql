@@ -2,46 +2,26 @@
 
 -- One row per (entity_key, reporting_year).
 -- reporting_year = annual_amendment_fiscal_year from the annual amendment.
--- Other-amendments are assigned to the reporting year of the most recent prior annual.
--- latest_filing_id is the most recent amendment of any type within that year;
+-- Other-amendments are assigned to the reporting year of the most recent prior annual
+-- (see int_era_filing_year_map).
+-- latest_filing_id is the most recent filing of any type within that year;
 -- it equals annual_filing_id unless an other-amendment was filed after the annual.
 
-with history as (
-    select * from {{ ref('era_filing_history') }}
+with year_map as (
+    select * from {{ ref('int_era_filing_year_map') }}
 ),
 
+-- Latest annual per (entity, reporting_year). Defends against a re-filed annual
+-- for the same fiscal year by collapsing to the most recent one.
 annuals as (
     select
         entity_key,
-        filing_id      as annual_filing_id,
-        date_submitted as annual_filing_date,
-        fiscal_year    as reporting_year
-    from history
-    where is_annual_amendment_era
-      and fiscal_year is not null
-),
-
--- Other-amendments inherit the reporting year of the most recent prior annual
-other_amendments as (
-    select
-        h.entity_key,
-        h.filing_id,
-        h.date_submitted,
-        max_by(a.reporting_year, a.annual_filing_date) as reporting_year
-    from history h
-    join annuals a
-        on  a.entity_key         = h.entity_key
-        and a.annual_filing_date <= h.date_submitted
-    where h.is_other_amendment_era
-    group by h.entity_key, h.filing_id, h.date_submitted
-),
-
-all_with_year as (
-    select entity_key, annual_filing_id as filing_id, annual_filing_date as date_submitted, reporting_year
-    from annuals
-    union all
-    select entity_key, filing_id, date_submitted, reporting_year
-    from other_amendments
+        reporting_year,
+        max_by(filing_id, date_submitted) as annual_filing_id,
+        max(date_submitted)               as annual_filing_date
+    from year_map
+    where is_annual
+    group by entity_key, reporting_year
 ),
 
 latest_per_year as (
@@ -50,7 +30,7 @@ latest_per_year as (
         reporting_year,
         max_by(filing_id, date_submitted) as latest_filing_id,
         max(date_submitted)               as latest_filing_date
-    from all_with_year
+    from year_map
     group by entity_key, reporting_year
 )
 

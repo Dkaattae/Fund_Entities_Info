@@ -8,12 +8,20 @@ st.set_page_config(page_title="Fund Closures", layout="wide")
 
 st.title("Fund Closures")
 st.caption(
-    "ERA (Form ADV) closure signals detected from consecutive filings. "
-    "fund_removed: a specific fund dropped from Form ADV. "
-    "aum_zeroed: adviser AUM went from > 0 to 0."
+    "ERA (Form ADV) closure signals. "
+    "final_filing: adviser filed an SEC/state final filing (authoritative). "
+    "fund_removed: a specific fund dropped from Form ADV year-over-year. "
+    "aum_zeroed: adviser AUM went from > 0 to a reported 0."
+)
+st.caption(
+    "⏱ Timing note: events are bucketed by the **calendar quarter the filing was submitted**, "
+    "not by fiscal year. A *final_filing* is dated when the adviser actually withdrew. "
+    "*fund_removed* / *aum_zeroed* are year-over-year (fiscal) signals, so an FY2025 event "
+    "appears in the quarter that year's annual amendment was filed — typically early 2026."
 )
 
 SIGNAL_LABELS = {
+    "final_filing": "Final Filing",
     "fund_removed": "Fund Removed from ADV",
     "aum_zeroed":   "AUM Dropped to Zero",
 }
@@ -81,7 +89,7 @@ with st.sidebar:
     )
 
     quarters = sorted(df["closure_quarter_label"].dropna().unique())
-    selected_quarters = st.multiselect("Quarter", quarters, default=quarters)
+    selected_quarters = st.multiselect("Filed Quarter", quarters, default=quarters)
 
     st.divider()
     hide_late_filers = st.checkbox(
@@ -106,11 +114,12 @@ if hide_late_filers:
 # ---------------------------------------------------------------------------
 late_filer_count = int(filtered["is_late_filer"].fillna(False).sum())
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Total closure events", len(filtered))
-c2.metric("Fund removed events",  int((filtered["closure_signal"] == "fund_removed").sum()))
-c3.metric("AUM zeroed events",    int((filtered["closure_signal"] == "aum_zeroed").sum()))
-c4.metric("Late filers (>18 mo)", late_filer_count,
+c2.metric("Final filings",        int((filtered["closure_signal"] == "final_filing").sum()))
+c3.metric("Fund removed events",  int((filtered["closure_signal"] == "fund_removed").sum()))
+c4.metric("AUM zeroed events",    int((filtered["closure_signal"] == "aum_zeroed").sum()))
+c5.metric("Late filers (>18 mo)", late_filer_count,
           help="Advisers whose prior annual amendment was filed more than 18 months earlier. "
                "Their detected closure date may lag the actual closure by a year or more.")
 
@@ -119,7 +128,8 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Bar chart: closures by quarter, broken down by signal type
 # ---------------------------------------------------------------------------
-st.subheader("Closure Events by Quarter")
+st.subheader("Closure Events by Filed Quarter")
+st.caption("X-axis = calendar quarter the filing was submitted (not fiscal year). See timing note above.")
 
 by_quarter = (
     filtered.groupby(["closure_quarter_label", "signal_label"])
@@ -134,7 +144,7 @@ fig = px.bar(
     color="signal_label",
     barmode="stack",
     labels={
-        "closure_quarter_label": "Quarter",
+        "closure_quarter_label": "Filed Quarter",
         "count":                 "Events",
         "signal_label":          "Signal",
     },
@@ -161,7 +171,7 @@ display = pd.DataFrame({
     "Late Filer":         filtered["is_late_filer"].apply(
                               lambda v: "⚠ Yes" if v else ""
                           ),
-    "Quarter":            filtered["closure_quarter_label"],
+    "Filed Quarter":      filtered["closure_quarter_label"],
     "Fund":               filtered["fund_name"].fillna("—"),
     "File No.":           filtered["form_d_file_number"].fillna("—"),
     "AUM Before":         filtered["prior_aum"].apply(fmt_aum),

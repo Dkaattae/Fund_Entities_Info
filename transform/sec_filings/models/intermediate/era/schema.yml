@@ -1,6 +1,25 @@
 version: 2
 
 models:
+  - name: int_era_filing_year_map
+    description: >
+      Per-filing → reporting_year assignment. One row per ERA filing that belongs to a
+      reporting year: annual amendments define a year (their derived fiscal_year), and
+      other-amendments inherit the reporting year of the most recent prior annual.
+      Building block for int_era_filings_by_year and int_era_annual_snapshot, keeping the
+      year-assignment logic in one place.
+    columns:
+      - name: entity_key
+        description: "CRD number, or SEC adviser number where CRD is unavailable."
+      - name: filing_id
+        description: "ERA filing id assigned to the reporting year."
+      - name: date_submitted
+        description: "Submission date of the filing."
+      - name: reporting_year
+        description: "Fiscal year this filing reports on / amends."
+      - name: is_annual
+        description: "True for the annual amendment; false for an other-amendment patch."
+
   - name: int_era_filings_by_year
     description: >
       One row per (entity_key, reporting_year). Reporting year is the derived fiscal_year
@@ -26,12 +45,13 @@ models:
 
   - name: int_era_annual_snapshot
     description: >
-      One row per (entity_key, reporting_year): the fully-resolved state for that
-      fiscal year, built on top of int_era_filings_by_year. Content (AUM, fund list)
-      comes from latest_filing_id so that other-amendments filed after the annual
-      amendment are reflected before any downstream year-over-year comparisons.
-      Downstream models (era_fund_closures) should use this instead of comparing
-      raw consecutive filings.
+      One row per (entity_key, reporting_year): the fully-reconstructed state for that
+      fiscal year. Because ADV amendments are sparse (a field left blank means
+      "unchanged", not "now empty"), each field is reconstructed from the year's filing
+      chain rather than read from latest_filing_id alone: AUM is the most recent non-null
+      value in the chain, and the fund list comes from the most recent filing that
+      reported any funds. Downstream models (era_fund_closures) should use this instead
+      of comparing raw consecutive filings.
     columns:
       - name: entity_key
         description: "CRD number, or SEC adviser number where CRD is unavailable."
@@ -44,9 +64,9 @@ models:
       - name: is_superseded_by_amendment
         description: "True when an other-amendment was filed after the annual."
       - name: assets_under_management
-        description: "AUM as reported in latest_filing_id."
+        description: "Most recent non-null AUM across the year's filing chain. NULL if never reported that year."
       - name: fund_file_numbers
-        description: "Array of Form D file numbers disclosed in latest_filing_id. NULL if none."
+        description: "Array of Form D file numbers from the latest filing in the year that reported any funds. NULL if none."
       - name: fund_count
         description: "Count of Form D file numbers in fund_file_numbers."
 
