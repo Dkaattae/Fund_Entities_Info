@@ -3,3 +3,6 @@ ingestion/adv-form/state_adviser_files/*.xml
 
 __pycache__/
 *.pyc
+
+# dbt run artifacts
+logs/
