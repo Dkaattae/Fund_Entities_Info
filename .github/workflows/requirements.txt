@@ -7,6 +7,9 @@ google-cloud-bigquery-storage
 db-dtypes
 pyarrow
 dlt[bigquery]
-prefect
+prefect==3.7.4
+# Pin fastapi: 0.137.x breaks prefect 3.7.4's ephemeral server
+# (PrefectRouter has no attribute 'routes'). 0.136.3 is the last good release.
+fastapi==0.136.3
 dbt-bigquery
 xmltodict
