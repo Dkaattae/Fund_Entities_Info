@@ -16,11 +16,6 @@ with by_year as (
     select * from {{ ref('int_era_filings_by_year') }}
 ),
 
-filing_aum as (
-    select filing_id, assets_under_management
-    from {{ ref('era_filing_history') }}
-),
-
 -- Form D file numbers disclosed in a given filing.
 -- DISTINCT because form_d_num can carry several rows per (filing, fund)
 -- (one per reference_id); without it the fund array and fund_count double-count.
@@ -40,14 +35,16 @@ select
     b.latest_filing_id,
     b.latest_filing_date,
     b.is_superseded_by_amendment,
-    a.assets_under_management,
+    -- Resolved AUM = most-recent NON-NULL value reported in the year (see
+    -- int_era_filings_by_year). A blank AUM on an amendment means unchanged, so it
+    -- does not zero out a value the annual reported.
+    b.assets_under_management,
     -- Array of Form D file numbers from the latest filing for this year.
     -- NULL when the adviser reported no funds (no form_d_num rows for that filing).
     array_agg(fl.form_d_file_number ignore nulls order by fl.form_d_file_number)
         as fund_file_numbers,
     count(fl.form_d_file_number) as fund_count
 from by_year b
-left join filing_aum  a  on a.filing_id  = b.latest_filing_id
 left join fund_links  fl on fl.filing_id = b.latest_filing_id
 group by
     b.entity_key,
@@ -57,4 +54,4 @@ group by
     b.latest_filing_id,
     b.latest_filing_date,
     b.is_superseded_by_amendment,
-    a.assets_under_management
+    b.assets_under_management

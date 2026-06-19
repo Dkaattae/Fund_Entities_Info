@@ -65,8 +65,11 @@ aum_zeroed as (
         current_aum,
         prior_aum
     from year_pairs
-    where coalesce(current_aum, 0) = 0
-      and coalesce(prior_aum,   0) > 0
+    -- current_aum must be a GENUINELY reported zero. A NULL means the year reported
+    -- no AUM at all (unknown / unchanged, per "blank is not zero"), which is not a
+    -- closure. prior must be a real positive value.
+    where current_aum = 0
+      and coalesce(prior_aum, 0) > 0
 ),
 
 -- ── Signal: fund removed ───────────────────────────────────────────────────
