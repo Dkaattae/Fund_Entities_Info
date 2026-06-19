@@ -119,17 +119,71 @@ fund_admin_canonical_lookup as (
     group by 1
 ),
 
+-- Fuzzy fallback for FUND_ADMIN names the exact-normalized lookup above misses
+-- (typos, word-order swaps, abbreviations the aggressive normalizer can't reconcile).
+-- Uses light normalization (normalize_provider_name keeps industry words like
+-- "fund"/"services" so token overlap is meaningful) + token_set_similarity, and
+-- auto-applies any match at or above the 0.92 threshold. Tune the threshold against
+-- scripts/discover_unknown_fund_admins.py output if you see false positives.
+fund_admin_seed_targets as (
+    select distinct
+        canonical_name,
+        {{ normalize_provider_name('canonical_name') }} as norm_canonical
+    from {{ ref('fund_admin_aliases') }}
+    where canonical_name is not null and trim(canonical_name) != ''
+),
+
+-- Distinct filing fund-admin names with NO exact-normalized seed match.
+fund_admin_unmatched as (
+    select distinct
+        u.raw_name,
+        {{ normalize_provider_name('u.raw_name') }} as norm_raw
+    from unioned u
+    left join fund_admin_canonical_lookup fa
+        on  {{ normalize_fund_admin_name('u.raw_name') }} = fa.norm_key
+        and {{ normalize_fund_admin_name('u.raw_name') }} != ''
+    where u.provider_type = 'FUND_ADMIN'
+      and u.raw_name is not null
+      and fa.canonical_name is null
+),
+
+-- Best fuzzy seed match per unmatched raw_name, kept only if score >= threshold.
+-- Length guard (>= 4 chars each side) stops tiny strings from false-matching.
+fund_admin_fuzzy as (
+    select raw_name, canonical_name, score
+    from (
+        select
+            un.raw_name,
+            t.canonical_name,
+            -- Blended score: token-set covers word-order / extra words, edit-distance
+            -- covers intra-word typos. GREATEST lets either metric clear the threshold.
+            greatest(
+                {{ token_set_similarity('un.norm_raw', 't.norm_canonical') }},
+                {{ edit_distance_ratio('un.norm_raw', 't.norm_canonical') }}
+            ) as score
+        from fund_admin_unmatched un
+        cross join fund_admin_seed_targets t
+        where length(un.norm_raw) >= 4
+          and length(t.norm_canonical) >= 4
+    )
+    qualify row_number() over (
+                partition by raw_name order by score desc nulls last
+            ) = 1
+        and score >= 0.92
+),
+
 with_normalized as (
     select
         u.*,
         {{ normalize_provider_name('u.raw_name') }} as normalized_name,
-        fa.canonical_name                            as alias_canonical_name,
-        -- FUND_ADMIN: normalize the seed canonical_name if matched, else normalize raw_name.
-        -- Normalized matching means one seed entry covers all international offices.
-        -- All other types: use normalized raw_name (city/country stay in their own columns).
+        -- Exact-normalized seed match wins; otherwise fall back to the fuzzy match.
+        coalesce(fa.canonical_name, faf.canonical_name) as alias_canonical_name,
+        -- FUND_ADMIN: normalize the matched seed canonical_name (exact or fuzzy) if any,
+        -- else normalize raw_name. Normalized matching means one seed entry covers all
+        -- international offices. All other types: use normalized raw_name.
         case
             when u.provider_type = 'FUND_ADMIN'
-                then {{ normalize_provider_name('coalesce(fa.canonical_name, u.raw_name)') }}
+                then {{ normalize_provider_name('coalesce(fa.canonical_name, faf.canonical_name, u.raw_name)') }}
             else {{ normalize_provider_name('u.raw_name') }}
         end as effective_normalized_name
     from unioned u
@@ -137,6 +191,9 @@ with_normalized as (
         on  u.provider_type = 'FUND_ADMIN'
         and {{ normalize_fund_admin_name('u.raw_name') }} = fa.norm_key
         and {{ normalize_fund_admin_name('u.raw_name') }} != ''
+    left join fund_admin_fuzzy faf
+        on  u.provider_type = 'FUND_ADMIN'
+        and u.raw_name = faf.raw_name
 ),
 
 -- Per (normalized_name, provider_type): find the most authoritative registry id

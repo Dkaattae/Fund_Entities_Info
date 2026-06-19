@@ -9,23 +9,45 @@
 with links as (
     select * from {{ ref('int_service_provider_links') }}
     where canonical_id is not null
+),
+
+-- Deterministic mode for display_name: the most-frequently-reported raw_name,
+-- ties broken alphabetically so the value is stable across runs. (approx_top_count
+-- is approximate and breaks ties arbitrarily, which can flip the display name
+-- run-to-run for a human-read dim.)
+name_counts as (
+    select canonical_id, provider_type, raw_name, count(*) as n
+    from links
+    where raw_name is not null
+    group by canonical_id, provider_type, raw_name
+),
+
+display_names as (
+    select
+        canonical_id,
+        provider_type,
+        array_agg(raw_name order by n desc, raw_name limit 1)[offset(0)] as display_name
+    from name_counts
+    group by canonical_id, provider_type
 )
 
 select
-    canonical_id,
-    provider_type,
-    -- Most-common name across all filings referencing this provider
-    approx_top_count(raw_name, 1)[safe_offset(0)].value         as display_name,
-    max(sec_number)                                              as sec_number,
-    max(crd_number)                                              as crd_number,
-    max(pcaob_number)                                            as pcaob_number,
-    max(lei)                                                     as lei,
-    -- Most-common city/state/country to avoid stray address strings winning
-    approx_top_count(city,    1)[safe_offset(0)].value          as city,
-    approx_top_count(state,   1)[safe_offset(0)].value          as state,
-    approx_top_count(country, 1)[safe_offset(0)].value          as country,
-    count(distinct raw_name)                                     as raw_name_variants,
-    array_agg(distinct raw_name ignore nulls order by raw_name limit 20) as raw_name_samples,
-    count(distinct filing_id)                                    as total_filings_referenced
-from links
-group by canonical_id, provider_type
+    l.canonical_id,
+    l.provider_type,
+    d.display_name,
+    max(l.sec_number)                                            as sec_number,
+    max(l.crd_number)                                            as crd_number,
+    max(l.pcaob_number)                                          as pcaob_number,
+    max(l.lei)                                                   as lei,
+    -- city/state/country keep approx mode: it protects against a single mistyped
+    -- filing (e.g. a full street address in the city field) winning, and exact
+    -- determinism is not needed for these secondary fields.
+    approx_top_count(l.city,    1)[safe_offset(0)].value        as city,
+    approx_top_count(l.state,   1)[safe_offset(0)].value        as state,
+    approx_top_count(l.country, 1)[safe_offset(0)].value        as country,
+    count(distinct l.raw_name)                                  as raw_name_variants,
+    array_agg(distinct l.raw_name ignore nulls order by l.raw_name limit 20) as raw_name_samples,
+    count(distinct l.filing_id)                                 as total_filings_referenced
+from links l
+join display_names d using (canonical_id, provider_type)
+group by l.canonical_id, l.provider_type, d.display_name
