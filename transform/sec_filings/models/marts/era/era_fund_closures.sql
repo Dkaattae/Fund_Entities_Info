@@ -1,7 +1,14 @@
 {{ config(materialized='table') }}
 
--- Detects two closure signals by comparing consecutive fiscal-year snapshots
--- (int_era_annual_snapshot) for each adviser:
+-- Detects three closure signals for each adviser. The first two compare
+-- consecutive fiscal-year snapshots (int_era_annual_snapshot); the third covers
+-- advisers who wind down entirely and therefore have no next-year snapshot to diff:
+--
+-- adviser_terminated: adviser filed a final ERA report and filed nothing after.
+--               Year-over-year diffing is blind to these (no following snapshot),
+--               so every fund in their LAST snapshot is closed, dated to the final
+--               report. Going dark WITHOUT a final report is left to
+--               adviser_filing_compliance, not treated as a closure here.
 --
 -- fund_removed: a Form D file_number present in year Y-1's snapshot is absent
 --               in year Y's snapshot.  Because the snapshot reflects the LATEST
@@ -87,11 +94,74 @@ fund_removed as (
     )
 ),
 
+-- ── Signal: adviser terminated (final ERA report) ───────────────────────────
+-- An adviser that files a FINAL ERA report and then files nothing further has
+-- wound down. Year-over-year diffing cannot see this — there is no next-year
+-- snapshot to compare against — so every fund in the adviser's LAST snapshot is
+-- emitted as a closure, dated to the final report itself (not a later filing).
+-- Advisers that filed anything AFTER their final report are excluded (re-registered,
+-- amended, etc.). Going dark WITHOUT a final report is a compliance concern, handled
+-- by adviser_filing_compliance, and is intentionally NOT treated as a closure here.
+final_reports as (
+    select
+        entity_key,
+        max_by(filing_id, date_submitted) as final_filing_id,
+        max(date_submitted)               as final_filing_date
+    from {{ ref('era_filing_history') }}
+    where is_final_sec_era or is_final_state_era
+    group by entity_key
+),
+
+entity_last_activity as (
+    select entity_key, max(date_submitted) as last_any_date
+    from {{ ref('era_filing_history') }}
+    group by entity_key
+),
+
+terminated_advisers as (
+    select fr.entity_key, fr.final_filing_id, fr.final_filing_date
+    from final_reports fr
+    join entity_last_activity la using (entity_key)
+    -- nothing filed after the final report → a genuine wind-down
+    where la.last_any_date <= fr.final_filing_date
+),
+
+-- Terminal state per adviser: fund list + AUM from their most recent snapshot.
+last_snapshot as (
+    select entity_key, latest_filing_id, latest_filing_date,
+           assets_under_management, fund_file_numbers
+    from (
+        select s.*,
+               row_number() over (partition by entity_key order by reporting_year desc) as rn
+        from snapshot s
+    )
+    where rn = 1
+),
+
+adviser_terminated as (
+    select
+        t.entity_key,
+        t.final_filing_id                                          as filing_id_current,
+        t.final_filing_date                                        as filing_date_current,
+        ls.latest_filing_id                                        as prior_filing_id,
+        ls.latest_filing_date                                      as filing_date_prior,
+        date_diff(t.final_filing_date, ls.latest_filing_date, day) as days_since_prior_filing,
+        'adviser_terminated'                                       as closure_signal,
+        fn                                                         as form_d_file_number,
+        cast(null as int64)                                        as current_aum,
+        ls.assets_under_management                                 as prior_aum
+    from terminated_advisers t
+    join last_snapshot ls using (entity_key)
+    cross join unnest(ls.fund_file_numbers) as fn
+),
+
 -- ── Combine ────────────────────────────────────────────────────────────────
 all_closures as (
     select * from aum_zeroed
     union all
     select * from fund_removed
+    union all
+    select * from adviser_terminated
 ),
 
 adviser_info as (

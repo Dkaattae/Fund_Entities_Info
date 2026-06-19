@@ -21,9 +21,11 @@ filing_aum as (
     from {{ ref('era_filing_history') }}
 ),
 
--- Form D file numbers disclosed in a given filing
+-- Form D file numbers disclosed in a given filing.
+-- DISTINCT because form_d_num can carry several rows per (filing, fund)
+-- (one per reference_id); without it the fund array and fund_count double-count.
 fund_links as (
-    select
+    select distinct
         filing_id,
         form_d_file_number
     from {{ source('era_adv', 'form_d_num') }}

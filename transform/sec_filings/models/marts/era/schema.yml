@@ -14,15 +14,17 @@ models:
 
   - name: era_fund_closures
     description: >
-      Fund closure events detected by comparing consecutive ERA filings per adviser.
-      Two closure signals: fund_removed (a Form D file_number dropped from Form ADV)
-      and aum_zeroed (AUM went from > 0 to 0 between two consecutive filings).
-      One row per closure event; filing_date_current is when it was first detected.
+      Fund closure events for ERA advisers. Three closure signals:
+      fund_removed (a Form D file_number dropped from one annual snapshot to the next),
+      aum_zeroed (AUM went from > 0 to 0 between consecutive annual snapshots), and
+      adviser_terminated (adviser filed a final ERA report and went dark — every fund
+      in their last snapshot is closed, dated to the final report). One row per
+      (entity, fund/aum) closure event.
     columns:
       - name: entity_key
         description: "Adviser CRD or SEC adviser number."
       - name: closure_signal
-        description: "fund_removed | aum_zeroed"
+        description: "fund_removed | aum_zeroed | adviser_terminated"
       - name: filing_date_current
         description: "Date of the filing where the closure was first detected."
       - name: filing_date_prior
