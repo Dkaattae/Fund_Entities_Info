@@ -33,6 +33,11 @@ models:
         description: "The specific Form D file number that was removed (fund_removed signal only)."
       - name: fund_name
         description: "Name of the removed fund from Form D data (fund_removed signal only)."
+      - name: fund_continues_elsewhere
+        description: >
+          True when the fund was still reported under a different adviser at/after the
+          closure date — the fund changed advisers rather than closing. Not a true
+          closure; dashboards hide these by default.
 
   - name: era_filing_history
     description: All filings per ERA, with amendment flags and fiscal year end.

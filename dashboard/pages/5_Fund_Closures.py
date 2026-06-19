@@ -8,14 +8,16 @@ st.set_page_config(page_title="Fund Closures", layout="wide")
 
 st.title("Fund Closures")
 st.caption(
-    "ERA (Form ADV) closure signals detected from consecutive filings. "
+    "ERA (Form ADV) closure signals. "
     "fund_removed: a specific fund dropped from Form ADV. "
-    "aum_zeroed: adviser AUM went from > 0 to 0."
+    "aum_zeroed: adviser AUM went from > 0 to 0. "
+    "adviser_terminated: adviser filed a final ERA report and wound down."
 )
 
 SIGNAL_LABELS = {
-    "fund_removed": "Fund Removed from ADV",
-    "aum_zeroed":   "AUM Dropped to Zero",
+    "fund_removed":       "Fund Removed from ADV",
+    "adviser_terminated": "Adviser Terminated",
+    "aum_zeroed":         "AUM Dropped to Zero",
 }
 
 
@@ -52,7 +54,8 @@ def load_closures() -> pd.DataFrame:
             fund_name,
             edgar_fund_history_url,
             current_aum,
-            prior_aum
+            prior_aum,
+            fund_continues_elsewhere
         FROM `{project}.sec_filings_marts.era_fund_closures`
         ORDER BY filing_date_current DESC
     """).to_dataframe()
@@ -84,6 +87,15 @@ with st.sidebar:
     selected_quarters = st.multiselect("Quarter", quarters, default=quarters)
 
     st.divider()
+    hide_moved = st.checkbox(
+        "Hide funds that changed adviser",
+        value=True,
+        help=(
+            "Some funds drop off an adviser's Form ADV because the fund switched advisers "
+            "(small managers often outsource the adviser role), not because it closed. "
+            "These are still reported under another adviser after the closure date."
+        ),
+    )
     hide_late_filers = st.checkbox(
         "Hide late filers (>18 months gap)",
         value=False,
@@ -98,6 +110,9 @@ filtered = df[
     df["closure_quarter_label"].isin(selected_quarters)
 ].copy()
 
+if hide_moved:
+    filtered = filtered[~filtered["fund_continues_elsewhere"].fillna(False)]
+
 if hide_late_filers:
     filtered = filtered[~filtered["is_late_filer"].fillna(False)]
 
@@ -106,11 +121,14 @@ if hide_late_filers:
 # ---------------------------------------------------------------------------
 late_filer_count = int(filtered["is_late_filer"].fillna(False).sum())
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total closure events", len(filtered))
-c2.metric("Fund removed events",  int((filtered["closure_signal"] == "fund_removed").sum()))
-c3.metric("AUM zeroed events",    int((filtered["closure_signal"] == "aum_zeroed").sum()))
-c4.metric("Late filers (>18 mo)", late_filer_count,
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Total closure events",   len(filtered))
+c2.metric("Fund removed",           int((filtered["closure_signal"] == "fund_removed").sum()))
+c3.metric("Adviser terminated",     int((filtered["closure_signal"] == "adviser_terminated").sum()),
+          help="Adviser filed a final ERA report and wound down; every fund in their "
+               "last snapshot is closed, dated to the final report.")
+c4.metric("AUM zeroed",             int((filtered["closure_signal"] == "aum_zeroed").sum()))
+c5.metric("Late filers (>18 mo)",   late_filer_count,
           help="Advisers whose prior annual amendment was filed more than 18 months earlier. "
                "Their detected closure date may lag the actual closure by a year or more.")
 

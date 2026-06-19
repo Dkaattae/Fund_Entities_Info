@@ -177,6 +177,15 @@ fund_meta as (
     from {{ ref('int_form_d_filings') }}
     where file_num is not null
     group by file_num
+),
+
+-- Latest date each fund was reported under each adviser. Used to tell apart a real
+-- closure from a fund that merely changed advisers: small managers often outsource
+-- the adviser role, so the same Form D file_number reappears under a new entity.
+fund_presence as (
+    select fn as form_d_file_number, entity_key, max(latest_filing_date) as last_seen
+    from {{ ref('int_era_annual_snapshot') }}, unnest(fund_file_numbers) as fn
+    group by fn, entity_key
 )
 
 select
@@ -206,7 +215,17 @@ select
     fm.edgar_fund_history_url,
 
     c.current_aum,
-    c.prior_aum
+    c.prior_aum,
+
+    -- True when this fund was still reported under a DIFFERENT adviser at or after
+    -- the closure date — i.e. the fund did not close, it changed advisers. Not a true
+    -- closure; dashboards should hide these by default but keep them inspectable.
+    c.form_d_file_number is not null and exists (
+        select 1 from fund_presence fp
+        where fp.form_d_file_number = c.form_d_file_number
+          and fp.entity_key != c.entity_key
+          and fp.last_seen >= c.filing_date_current
+    ) as fund_continues_elsewhere
 
 from all_closures c
 left join adviser_info a  using (entity_key)

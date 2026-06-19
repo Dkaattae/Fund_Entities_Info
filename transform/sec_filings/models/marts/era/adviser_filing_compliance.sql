@@ -66,6 +66,15 @@ filed_current_year as (
       and h.fiscal_year = c.yr
 ),
 
+-- Advisers who filed a final ERA report: they terminated, they are not delinquent.
+-- Their fund wind-downs are captured by era_fund_closures (adviser_terminated),
+-- so they must not also surface here as "overdue".
+terminated as (
+    select distinct entity_key
+    from filing_history
+    where is_final_sec_era or is_final_state_era
+),
+
 -- Compute due date per adviser and flag overdue ones
 overdue as (
     select
@@ -89,7 +98,9 @@ overdue as (
     cross join current_year c
     left join month_map mm on upper(lf.fiscal_year_end) = mm.month_name
     left join filed_current_year f using (entity_key)
-    where f.entity_key is null   -- not yet filed for current year
+    left join terminated tm using (entity_key)
+    where f.entity_key is null    -- not yet filed for current year
+      and tm.entity_key is null   -- and has not terminated via a final report
 ),
 
 final as (
