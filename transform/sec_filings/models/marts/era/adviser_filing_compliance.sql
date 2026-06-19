@@ -66,13 +66,25 @@ filed_current_year as (
       and h.fiscal_year = c.yr
 ),
 
--- Advisers who filed a final ERA report: they terminated, they are not delinquent.
--- Their fund wind-downs are captured by era_fund_closures (adviser_terminated),
--- so they must not also surface here as "overdue".
+-- Advisers who terminated: filed a final ERA report and filed nothing after.
+-- They are not delinquent — their wind-down is captured by era_fund_closures
+-- (adviser_terminated) — so they must not surface here as "overdue". Same definition
+-- as that signal: an adviser who filed AGAIN after a final report is active again and
+-- stays eligible for compliance flagging.
 terminated as (
-    select distinct entity_key
-    from filing_history
-    where is_final_sec_era or is_final_state_era
+    select fr.entity_key
+    from (
+        select entity_key, max(date_submitted) as final_date
+        from filing_history
+        where is_final_sec_era or is_final_state_era
+        group by entity_key
+    ) fr
+    join (
+        select entity_key, max(date_submitted) as last_date
+        from filing_history
+        group by entity_key
+    ) la using (entity_key)
+    where la.last_date <= fr.final_date
 ),
 
 -- Compute due date per adviser and flag overdue ones
