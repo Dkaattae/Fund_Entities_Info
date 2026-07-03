@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: stg_form_d_submission
+    description: >
+      One row per Form D submission (accession_number). Quarterly bulk dataset
+      is the source of truth; daily-crawler rows are unioned in only when their
+      accession_number is not yet present in a quarterly ZIP.
+    columns:
+      - name: accession_number
+        description: "SEC accession number — natural key of a submission."
+        tests:
+          - unique
+          - not_null

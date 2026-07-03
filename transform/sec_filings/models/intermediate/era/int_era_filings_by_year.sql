@@ -71,4 +71,11 @@ select
     l.latest_filing_id != a.annual_filing_id as is_superseded_by_amendment
 from latest_per_year l
 join annuals a using (entity_key, reporting_year)
+-- A few advisers file two annual amendments claiming the same fiscal year
+-- (e.g. a re-filed annual the following March). Keep the latest annual — it
+-- supersedes the earlier one — so the (entity_key, reporting_year) grain holds.
+qualify row_number() over (
+    partition by l.entity_key, l.reporting_year
+    order by a.annual_filing_date desc, a.annual_filing_id desc
+) = 1
 order by entity_key, reporting_year

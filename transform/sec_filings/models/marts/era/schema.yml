@@ -20,6 +20,10 @@ models:
       adviser_terminated (adviser filed a final ERA report and went dark — every fund
       in their last snapshot is closed, dated to the final report). One row per
       (entity, fund/aum) closure event.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'closure_signal', 'form_d_file_number']
     columns:
       - name: entity_key
         description: "Adviser CRD or SEC adviser number."
@@ -59,6 +63,10 @@ models:
 
   - name: service_provider_dim
     description: Canonical service-provider directory (auditor / fund admin / prime broker / marketer / custodian).
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['canonical_id', 'provider_type']
     columns:
       - name: canonical_id
         tests:

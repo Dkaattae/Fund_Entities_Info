@@ -6,13 +6,22 @@ models:
       One row per (entity_key, reporting_year). Reporting year is the derived fiscal_year
       from era_filing_history (priority: declared annual_amendment_fiscal_year, then FYE-derived,
       then submission year). Other-amendments inherit the reporting year of the most recent
-      prior annual for that entity.
+      prior annual for that entity. When two annuals claim the same fiscal year,
+      the latest one wins.
       Use this for year-over-year analysis, compliance views, and dashboards.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'reporting_year']
     columns:
       - name: entity_key
         description: "CRD number, or SEC adviser number where CRD is unavailable."
+        tests:
+          - not_null
       - name: reporting_year
         description: "Fiscal year being reported on (e.g. 2024 for a Dec-FYE firm filing in early 2025)."
+        tests:
+          - not_null
       - name: annual_filing_id
         description: "filing_id of the annual amendment for this reporting year."
       - name: annual_filing_date
@@ -32,11 +41,19 @@ models:
       amendment are reflected before any downstream year-over-year comparisons.
       Downstream models (era_fund_closures) should use this instead of comparing
       raw consecutive filings.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'reporting_year']
     columns:
       - name: entity_key
         description: "CRD number, or SEC adviser number where CRD is unavailable."
+        tests:
+          - not_null
       - name: reporting_year
         description: "Fiscal year being reported on."
+        tests:
+          - not_null
       - name: latest_filing_id
         description: "filing_id of the most recent filing in this year (annual or amendment)."
       - name: latest_filing_date
@@ -55,3 +72,22 @@ models:
       Long-format union of every service-provider mention across all ERA filings.
       Each row preserves the (filing_id, reference_id) link back to the ERA, plus
       a canonical_id that identifies the same provider across rows whose raw names disagree.
+      NOTE on grain: reference_id is NOT unique per provider — for custodians it
+      references the fund/schedule entry, so one reference_id can carry several
+      distinct custodians. The exact-duplicate test below exists to catch
+      double-ingestion of a filing_month, not to assert a business key.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns:
+              ['filing_id', 'provider_type', 'reference_id', 'subreference_id', 'raw_name', 'city']
+    columns:
+      - name: filing_id
+        tests:
+          - not_null
+      - name: provider_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['AUDITOR', 'FUND_ADMIN', 'PRIME_BROKER', 'MARKETER', 'CUSTODIAN']
