@@ -183,9 +183,8 @@ def form_d_daily() -> None:
     """Daily EDGAR-index crawl + per-filing XML parse into the crawler dataset."""
     crawl_form_d_index()
     parse_form_d_pending()
-    # NOTE: dbt sources currently read only the bulk dataset (form_d_filings),
-    # not the crawler dataset (formd_filings_crawler). Daily-fresh rows won't
-    # show up in marts until the crawler tables are unioned into staging.
+    # Crawler rows flow into marts via stg_form_d_* (unioned with the quarterly
+    # bulk dataset, deduped by accession number — quarterly wins).
     dbt_run("tag:form_d")
 
 

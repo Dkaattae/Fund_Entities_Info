@@ -34,7 +34,7 @@ def download_file(mm, yy, file_folder='./files/'):
             filepath_previous = os.path.join(file_folder, filename.format(mm=pm, yy=py))
             if response_previous.status_code == 200:
                 with open(filepath_previous, 'wb') as file:
-                    file.write(response.content)
+                    file.write(response_previous.content)
             if response_previous.status_code == 404:
                 print('check month')
 
