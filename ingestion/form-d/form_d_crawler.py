@@ -72,21 +72,31 @@ def formd_by_date(start_date, end_date) -> pd.DataFrame:
 
 
 def get_last_crawled_date() -> date | None:
-    """Return the latest filing_date in the quarterly bulk dataset.
+    """Return the latest date already covered by either dataset.
 
-    We use the quarterly dataset as the anchor because formd_daily_submissions
-    stores Form D filing dates (not crawl dates), so it's not a reliable
-    indicator of which daily index files have already been fetched.
+    Takes the max over the quarterly bulk dataset (filing_date) AND the
+    daily tracking table (index date). The tracking table must be included:
+    re-crawling an already-fetched day re-merges its rows with
+    status='PENDING', which wipes the PARSED statuses and makes the parser
+    redo (and re-count) the same filings every run.
     """
-    query = f"""
+    bulk_query = f"""
         SELECT MAX(SAFE.PARSE_DATE('%d-%b-%Y', filing_date)) AS max_date
         FROM `{project_id}.form_d_filings.form_d_submission`
     """
-    result = bq_client.query(query).to_dataframe()
-    val = result["max_date"].iloc[0]
-    if pd.isna(val):
-        return None
-    return pd.Timestamp(val).date()
+    tracking_query = f"""
+        SELECT MAX(SAFE.PARSE_DATE('%Y%m%d', CAST(date AS STRING))) AS max_date
+        FROM `{project_id}.{DATASET}.formd_daily_submissions`
+    """
+    dates = []
+    for q in (bulk_query, tracking_query):
+        try:
+            val = bq_client.query(q).to_dataframe()["max_date"].iloc[0]
+        except Exception:
+            continue  # table may not exist yet (first bootstrap)
+        if not pd.isna(val):
+            dates.append(pd.Timestamp(val).date())
+    return max(dates) if dates else None
 
 
 def load_formd_data(start_date: date, end_date: date):

@@ -196,4 +196,6 @@ def ingestion_flow(batch_limit=1000, exhaust_all=False):
             break  # Exit after one batch if not exhausting all
 
 if __name__ == "__main__":
-    ingestion_flow(batch_limit=10)
+    # Exhaust the full pending backlog each run. Normal daily volume is a
+    # few hundred filings; anything larger means we're catching up a gap.
+    ingestion_flow(batch_limit=500, exhaust_all=True)

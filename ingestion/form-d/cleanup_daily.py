@@ -98,14 +98,16 @@ def cleanup_tracking_table(cutoff_date):
 
     # The tracking table uses 'date' column (from the daily index), not
     # filing_date, and it is an INT64 in YYYYMMDD form.
-    # Delete PARSED rows where date <= cutoff (already in historical)
+    # Delete ALL rows where date <= cutoff regardless of status: those
+    # filings are covered by the quarterly bulk dataset, so still-PENDING
+    # rows are dead backlog that would otherwise linger forever.
     cutoff_int = int(cutoff_date.strftime("%Y%m%d"))
     query = f"""
         DELETE FROM {tracking_table}
-        WHERE status = 'PARSED' AND date <= {cutoff_int}
+        WHERE date <= {cutoff_int}
     """
     result = client.query(query).result()
-    print(f"  Cleaned formd_daily_submissions: deleted PARSED rows with date <= {cutoff_date}")
+    print(f"  Cleaned formd_daily_submissions: deleted rows with date <= {cutoff_date}")
 
 
 def run_cleanup(dry_run=True):
