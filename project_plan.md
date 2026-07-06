@@ -282,7 +282,9 @@ Revisit when Prefect moves to a real deployment:
 
 Architecture-level review after the code-error sweep. Ordered by value.
 
-- [ ] **Derive the broker-dealer master in dbt, not pandas.**
+- [ ] *(deferred 2026-07-06 — owner decision: BD is small, pandas handles it
+  fine, and BD may be abandoned later; revisit ONLY if broker-dealer data
+  gets used in the dashboard)* **Derive the broker-dealer master in dbt, not pandas.**
   `broker_dealer_raw` already holds every monthly snapshot in BigQuery, so
   status / start_month / withdrawn_month / Reregistered are pure
   window-function logic over `file_month` — exactly the pattern the state
