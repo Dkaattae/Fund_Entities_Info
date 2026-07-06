@@ -179,10 +179,14 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   destroying withdrawal history. Fixed transition logic (added
   `Reregistered` status: new start_month, keeps original withdrawn_month),
   rebuilt master from the raw table, caught up 03–06/2026. *(fixed 2026-07-06)*
-- [ ] **No dbt source freshness checks** (`models/staging/sources.yml`). If
-  SEC stops publishing or an ingestion silently stalls, nothing alerts. Add
+- [ ] **No dbt source freshness checks** (`models/staging/sources.yml`).
+  **Next up — do this first.** The 2026-07-06 sweep found two silent stalls
+  (ERA frozen at April, Form D daily effectively frozen since launch) that
+  freshness checks would have caught on day one; it's a sources.yml-only
+  change and runs inside the existing daily dbt jobs. Add
   `freshness: warn_after/error_after` per source matched to its cadence
-  (ERA monthly, state feed daily, Form D crawler daily).
+  (ERA monthly, state feed daily, Form D crawler daily, broker-dealer
+  monthly), using a `loaded_at_field` per table.
 - [ ] **Dashboard pages crash raw when BigQuery fails.** Only
   `4_First_Round_Fundraise.py` guards its query. Wrap the shared query path
   in `bq.py` with try/except + `st.error(...)` so all 8 pages degrade
@@ -273,6 +277,53 @@ Revisit when Prefect moves to a real deployment:
   start loading RIA through it. Until that refactor, leave `ria_ingestion.py`
   as-is (known: it references an undefined `gcp_credentials`; the refactor
   resolves it — do not patch in place).
+
+## Structural improvements (2026-07-06 sweep)
+
+Architecture-level review after the code-error sweep. Ordered by value.
+
+- [ ] **Derive the broker-dealer master in dbt, not pandas.**
+  `broker_dealer_raw` already holds every monthly snapshot in BigQuery, so
+  status / start_month / withdrawn_month / Reregistered are pure
+  window-function logic over `file_month` — exactly the pattern the state
+  adviser pipeline already uses ("raw snapshots in BQ, derived state in
+  dbt"). Moving it kills the merge-script bug class entirely (this week's
+  withdrawn_month bug lived there), makes rebuilds a `dbt run`, and gets
+  grain tests for free. `merge_files.py` shrinks to just the raw loader.
+  While there: load `BrokerDealerList.py`'s auditor-scrape output to BQ
+  instead of a local CSV — it's the input use case 5 (non-PCAOB auditors)
+  needs, and today it's disconnected from the warehouse.
+- [ ] **One scheduler as source of truth.** The same four schedules are
+  defined twice: `.github/workflows/*.yml` (live, actually running) and
+  `orchestration/serve.py` (Prefect deployments, not deployed). Editing one
+  and not the other will drift silently. Decision: GH Actions is
+  authoritative today; mark serve.py as the future Prefect spec and delete
+  the GH crons in the same PR that deploys Prefect. Also add the missing
+  schedule: **broker-dealer has no automation at all** — it sat un-updated
+  at Feb 2026 until the 2026-07-06 manual catch-up. A monthly GH workflow
+  (raw load + master update) closes that hole.
+- [ ] **Shared ingestion library (`ingestion/common/`).** The
+  BIGQUERY_SERVICE_ACCOUNT_JSON boilerplate (env read → json.loads →
+  client) is copy-pasted in ~10 files, the SEC User-Agent string in 7, and
+  month/date helpers exist in three flavors across dirs. One small module
+  (bq client factory, HEADERS constant, date helpers) means credential
+  handling and UA change in one place. The planned ERA/RIA flag refactor is
+  the natural first tenant of this package.
+- [ ] **Unit tests + CI for the pure logic.** There are zero Python tests;
+  both of this week's silent bugs (withdrawn_month overwrite, ERA
+  EXTRACT-on-STRING) were in small pure functions. Targets:
+  `merge_month()`, the date/month helpers, `parse_xml_schema` parsers
+  (`raw_data.xml` already exists as a fixture — move it to
+  `tests/fixtures/`), and cleanup cutoff logic. A pytest job on push (the
+  workflows requirements.txt already defines the env) plus a `dbt compile`
+  check is cheap insurance.
+- [ ] **Get data artifacts out of git.** Committed one-off outputs:
+  `ingestion/attorneys/*.csv`, `ingestion/broker-dealer/broker_dealer_*.csv`,
+  `ingestion/form-d/formD_2025_Q4.csv`, `formD_leads_2025_Q4.csv`. For each:
+  either load it to BigQuery because it matters (attorneys → future
+  law-firm provider type; auditor info → use case 5) or delete it and
+  .gitignore the pattern. The repo should hold code, seeds, and docs — not
+  exports. (Keep `raw_data.xml` only as a relocated test fixture.)
 
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 
