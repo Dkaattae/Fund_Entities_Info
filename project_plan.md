@@ -187,7 +187,9 @@ Revisit when Prefect moves to a real deployment:
 - [ ] deferred: Prefect flow-level failure alerting (email/Slack hook).
 - [ ] deferred: HTTP retry/backoff against SEC endpoints (fixed sleeps +
   only 200/404 handled today; a 5xx kills the run until the next schedule).
-- [ ] wontfix: User-Agent email hardcoded — owner is fine with it.
+- [x] User-Agent strings normalized to `HedgeFundNet katechen150621@gmail.com`
+  across Form D ingestion *(2026-07-06)*. Hardcoding itself stays — owner is
+  fine with it. (Broker-dealer files still use the old xchencws address.)
 - [ ] deferred: max-iterations guard on the `while True` loop in
   `form_d_detail.py:185`.
 
@@ -240,6 +242,20 @@ Revisit when Prefect moves to a real deployment:
 - [ ] **Docs drift**: README repo-layout omits `ingestion/attorneys/`;
   `CLAUDE.md` still says "Transform tool: not yet selected" (it's dbt);
   dead commented-out code in `ingestion/adv-form/util.py:46-52`.
+
+## Data coverage — expand historical data (planned)
+
+- [ ] **Expand Form D historical backfill beyond 2024.** Current bulk data
+  starts at 2024 Q1; SEC publishes quarterly Form D data sets back to 2008.
+  Expansion is a `backfill.py` run with an earlier `start_year` — do NOT
+  crawl old daily indexes (per-filing metadata lookup only covers a CIK's
+  ~1,000 most recent filings). Before running, read
+  `ingestion/form-d/README.md` § "Potential concerns when expanding
+  historical data": older ZIPs may have different columns, and the
+  first-raise / newly-emerging marts will (correctly) reclassify funds once
+  earlier history exists, so expect existing quarter counts to shift.
+- [ ] Decide target depth (e.g. 2019+ for a 5-year lookback vs full 2008+)
+  and check BigQuery cost impact before loading (~55k filings/year).
 
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 

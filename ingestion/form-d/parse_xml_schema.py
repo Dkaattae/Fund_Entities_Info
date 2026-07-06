@@ -8,7 +8,7 @@ def get_metadata(cik, accession_number):
     cik_padded = str(cik).zfill(10)
     url = f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
     headers = {
-        "User-Agent": "FormDParser formd@example.com"
+        "User-Agent": "HedgeFundNet katechen150621@gmail.com"
     }
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
@@ -313,7 +313,7 @@ def get_xml_url(cik, accession_clean):
     return xml_url
 
 def parse_formd(xml_url):
-    headers = {"User-Agent": "HedgeFundNet xchencws@gmail.com"}
+    headers = {"User-Agent": "HedgeFundNet katechen150621@gmail.com"}
     response = requests.get(xml_url, headers=headers)
     if response.status_code == 200:
         return response.content, response.status_code

@@ -20,7 +20,7 @@ project_id = gcp_credentials.get("project_id")
 DATASET = "formd_filings_crawler"
 
 headers = {
-    "User-Agent": "KateChen xchencws@gmail.com",
+    "User-Agent": "HedgeFundNet katechen150621@gmail.com",
     "Accept-Encoding": "gzip, deflate",
     "Host": "www.sec.gov",
 }
