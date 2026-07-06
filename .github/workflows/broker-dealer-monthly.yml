@@ -1,0 +1,25 @@
+name: Broker Dealer Monthly
+
+on:
+  schedule:
+    - cron: "0 9 5-31 * *"   # daily 5th-end of month 09:00 UTC; in-flow guard skips once merged
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r .github/workflows/requirements.txt
+
+      - name: Run flow
+        env:
+          BIGQUERY_SERVICE_ACCOUNT_JSON: ${{ secrets.BIGQUERY_SERVICE_ACCOUNT_JSON }}
+        run: python orchestration/flows.py broker_dealer

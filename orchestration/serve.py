@@ -11,6 +11,8 @@ Schedules (UTC):
                                                  (in-flow guard: no-op when current month loaded)
   * form-d-quarterly   0 8 4-31 1,4,7,10 *     daily 4th-end of Jan/Apr/Jul/Oct at 08:00
                                                  (in-flow guard: no-op when target quarter loaded)
+  * broker-dealer-monthly  0 9 5-31 * *        daily 5th-end of every month at 09:00
+                                                 (in-flow guard: no-op when month merged)
 
 Stop with Ctrl+C. Process must stay alive for the cron schedules to fire.
 """
@@ -22,6 +24,7 @@ from flows import (
     era_monthly,
     form_d_daily,
     form_d_quarterly,
+    broker_dealer_monthly,
 )
 
 
@@ -49,6 +52,13 @@ def main() -> None:
             description="Form D quarterly bulk + crawler dedupe + dbt refresh. "
                         "Fires daily 4th-end of Jan/Apr/Jul/Oct; "
                         "in-flow guard short-circuits once the target quarter is loaded.",
+        ),
+        broker_dealer_monthly.to_deployment(
+            name="broker-dealer-monthly",
+            cron="0 9 5-31 * *",
+            description="Broker-dealer monthly file -> raw -> master merge. "
+                        "Fires daily after the 5th; in-flow guard "
+                        "short-circuits once the month is merged.",
         ),
     ]
     serve(*deployments)

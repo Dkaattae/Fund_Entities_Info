@@ -31,7 +31,29 @@ BigQuery (mart tables)
 dashboard/          ← Streamlit app (8 pages)
 ```
 
-Orchestration is handled by **Prefect** (`orchestration/`), which schedules daily and monthly pipeline runs.
+## Scheduling / Orchestration
+
+Flow code lives in `orchestration/flows.py` (Prefect flows). **Scheduling
+currently runs on GitHub Actions** (`.github/workflows/`), which invokes the
+flows directly on each runner. Prefect is intentionally *not* deployed as a
+service yet — that needs extra infra and may add cost — so
+`orchestration/serve.py` only holds the equivalent cron definitions for
+when it is.
+
+Scheduled jobs (GitHub Actions — the current source of truth):
+
+| Workflow | Cron (UTC) | What it runs |
+|---|---|---|
+| `state-ria-daily.yml` | `0 6 * * *` | State-adviser snapshot ingest + dbt |
+| `form-d-daily.yml` | `0 7 * * *` | Form D daily index crawl + XML parse + dbt |
+| `era-monthly.yml` | `0 6 5-31 * *` | ERA monthly ZIP (fires daily in window; in-flow guard skips once the month is loaded) |
+| `form-d-quarterly.yml` | `0 8 4-31 1,4,7,10 *` | Form D bulk quarter + crawler cleanup + dbt (fires daily in window; guard skips once loaded) |
+| `broker-dealer-monthly.yml` | `0 9 5-31 * *` | Broker-dealer monthly file → raw table → master merge (guard skips once merged) |
+
+**Migration plan:** when Prefect gets a real deployment, move these crons to
+Prefect (`orchestration/serve.py` already mirrors them) and delete the
+GitHub Actions schedules in the same change — the two definitions must
+never both be live.
 
 ---
 

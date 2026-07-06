@@ -293,15 +293,14 @@ Architecture-level review after the code-error sweep. Ordered by value.
   While there: load `BrokerDealerList.py`'s auditor-scrape output to BQ
   instead of a local CSV — it's the input use case 5 (non-PCAOB auditors)
   needs, and today it's disconnected from the warehouse.
-- [ ] **One scheduler as source of truth.** The same four schedules are
-  defined twice: `.github/workflows/*.yml` (live, actually running) and
-  `orchestration/serve.py` (Prefect deployments, not deployed). Editing one
-  and not the other will drift silently. Decision: GH Actions is
-  authoritative today; mark serve.py as the future Prefect spec and delete
-  the GH crons in the same PR that deploys Prefect. Also add the missing
-  schedule: **broker-dealer has no automation at all** — it sat un-updated
-  at Feb 2026 until the 2026-07-06 manual catch-up. A monthly GH workflow
-  (raw load + master update) closes that hole.
+- [~] **One scheduler as source of truth.** *(mostly done 2026-07-06)*
+  Documented in the root README: GH Actions is authoritative today (chosen
+  over deploying Prefect for infra/cost reasons); `serve.py` mirrors the
+  crons as the future Prefect spec. The missing broker-dealer schedule is
+  added (`broker-dealer-monthly.yml`, daily 5th–31st with in-flow guard —
+  it had no automation and sat un-updated at Feb 2026 until the 2026-07-06
+  manual catch-up). Remaining: when Prefect gets a real deployment, move
+  the crons there and delete the GH Actions schedules in the same change.
 - [ ] **Shared ingestion library (`ingestion/common/`).** The
   BIGQUERY_SERVICE_ACCOUNT_JSON boilerplate (env read → json.loads →
   client) is copy-pasted in ~10 files, the SEC User-Agent string in 7, and
@@ -317,13 +316,13 @@ Architecture-level review after the code-error sweep. Ordered by value.
   `tests/fixtures/`), and cleanup cutoff logic. A pytest job on push (the
   workflows requirements.txt already defines the env) plus a `dbt compile`
   check is cheap insurance.
-- [ ] **Get data artifacts out of git.** Committed one-off outputs:
-  `ingestion/attorneys/*.csv`, `ingestion/broker-dealer/broker_dealer_*.csv`,
-  `ingestion/form-d/formD_2025_Q4.csv`, `formD_leads_2025_Q4.csv`. For each:
-  either load it to BigQuery because it matters (attorneys → future
-  law-firm provider type; auditor info → use case 5) or delete it and
-  .gitignore the pattern. The repo should hold code, seeds, and docs — not
-  exports. (Keep `raw_data.xml` only as a relocated test fixture.)
+- [~] **Get data artifacts out of git.** *(partially done 2026-07-06)*
+  Deleted `formD_2025_Q4.csv` / `formD_leads_2025_Q4.csv` (data lives in the
+  BigQuery bulk dataset) and removed the dead old-CSV-flow helpers from
+  `broker-dealer/utils.py`. Kept per owner decision: broker-dealer CSVs
+  (small, in use) and attorneys CSVs (NOT in BigQuery — they're the only
+  copy of the scraped data; load or park them when the law-firm provider
+  type gets picked up). Keep `raw_data.xml` as a future test fixture.
 
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 

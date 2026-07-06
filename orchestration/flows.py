@@ -30,6 +30,7 @@ from prefect import flow, task, get_run_logger
 REPO_ROOT         = Path(__file__).resolve().parent.parent
 ADV_INGEST_DIR    = REPO_ROOT / "ingestion" / "adv-form"
 FORM_D_INGEST_DIR = REPO_ROOT / "ingestion" / "form-d"
+BROKER_DEALER_DIR = REPO_ROOT / "ingestion" / "broker-dealer"
 TRANSFORM_DIR     = REPO_ROOT / "transform" / "sec_filings"
 
 
@@ -140,6 +141,14 @@ def cleanup_form_d_daily_overlap() -> None:
     _run(["python", "cleanup_daily.py", "--execute"], cwd=FORM_D_INGEST_DIR)
 
 
+@task(retries=1, retry_delay_seconds=600)
+def update_broker_dealer_master() -> None:
+    """merge_files.py __main__ runs update_monthly: downloads any missing
+    monthly files, loads them to the raw table, and merges into the master.
+    Its internal guard makes re-runs no-ops once the month is merged."""
+    _run(["python", "merge_files.py"], cwd=BROKER_DEALER_DIR)
+
+
 @task(retries=1, retry_delay_seconds=120)
 def dbt_run(select: str) -> None:
     _run(["python", "run_dbt.py", "run", "--select", select], cwd=TRANSFORM_DIR)
@@ -207,6 +216,13 @@ def form_d_quarterly() -> None:
     dbt_test("tag:form_d")
 
 
+@flow(name="broker-dealer-monthly", log_prints=True)
+def broker_dealer_monthly() -> None:
+    """Daily-in-window: short-circuits (inside update_monthly) once the
+    previous month's broker-dealer file is merged into the master table."""
+    update_broker_dealer_master()
+
+
 if __name__ == "__main__":
     import sys
 
@@ -215,6 +231,7 @@ if __name__ == "__main__":
         "era":              era_monthly,
         "form_d_daily":     form_d_daily,
         "form_d_quarterly": form_d_quarterly,
+        "broker_dealer":    broker_dealer_monthly,
     }
     arg = sys.argv[1] if len(sys.argv) > 1 else "state"
     fn = routes.get(arg)
