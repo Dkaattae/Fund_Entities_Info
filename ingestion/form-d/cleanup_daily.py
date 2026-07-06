@@ -22,14 +22,17 @@ client = bigquery.Client.from_service_account_info(gcp_credentials)
 HISTORICAL_DATASET = "form_d_filings"
 DAILY_DATASET = "formd_filings_crawler"
 
-# Tables that have accessionnumber as the join key
+# Tables that have accessionnumber as the join key.
+# form_d_submission MUST be deleted last: the child-table deletes select
+# their accession numbers from it, so deleting it first turns every child
+# delete into a no-op and orphans the child rows.
 DAILY_PARSED_TABLES = [
-    "form_d_submission",
     "issuer",
     "offering",
     "related_persons",
     "recipients",
     "signatures",
+    "form_d_submission",
 ]
 
 

@@ -4,6 +4,8 @@
 with quarterly_accessions as (
     select accessionnumber
     from {{ source('form_d_filings', 'form_d_submission') }}
+    -- null guard: a single NULL in a NOT IN list filters out every daily row
+    where accessionnumber is not null
 ),
 
 quarterly as (

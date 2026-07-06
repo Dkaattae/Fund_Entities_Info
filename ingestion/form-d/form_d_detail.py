@@ -146,6 +146,10 @@ def run_daily_parser_pipeline(pending_submissions):
     except Exception as e:
         print(f"Error during pipeline execution: {e}")
         traceback.print_exc()
+        # Do NOT return parsed_ids here: the load failed, so marking these
+        # rows PARSED would silently drop them. Leave them PENDING and let
+        # the task retry / next run pick them up.
+        raise
     return parsed_ids, failed_ids
 
 @task(name="Update Submission Statuses")
