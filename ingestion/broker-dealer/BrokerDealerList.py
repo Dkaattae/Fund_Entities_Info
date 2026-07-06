@@ -6,7 +6,7 @@ from utils import load_data
 
 
 headers = {
-    "User-Agent": "BrokerDealerList xchencws@gmail.com" 
+    "User-Agent": "HedgeFundNet katechen150621@gmail.com" 
 }
 
 def get_accession_number(CIK):

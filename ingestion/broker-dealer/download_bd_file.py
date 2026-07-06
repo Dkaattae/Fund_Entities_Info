@@ -6,7 +6,7 @@ from utils import get_previous_month
 
 
 headers = {
-    "User-Agent": "BrokerDealerList xchencws@gmail.com" 
+    "User-Agent": "HedgeFundNet katechen150621@gmail.com" 
 }
 
 def download_file(mm, yy, file_folder='./files/'):
