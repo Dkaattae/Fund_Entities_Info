@@ -34,22 +34,29 @@ DAILY_PARSED_TABLES = [
 
 
 def get_historical_cutoff_date():
+    """Return the latest filing_date in the historical dataset as a datetime.date.
+
+    Historical filing_date is a 'DD-MON-YYYY' string, so it must be parsed
+    before taking MAX (string MAX/comparisons are lexicographic, not
+    chronological).
+    """
     query = f"""
-        SELECT MAX(filing_date) as max_date
+        SELECT MAX(SAFE.PARSE_DATE('%d-%b-%Y', filing_date)) as max_date
         FROM `{project_id}.{HISTORICAL_DATASET}.form_d_submission`
     """
-    result = client.query(query).to_dataframe()
-    max_date = result['max_date'].iloc[0]
+    max_date = list(client.query(query).result())[0]["max_date"]
     print(f"Latest filing_date in historical dataset: {max_date}")
     return max_date
 
 
 def get_daily_stats(cutoff_date):
+    # Daily filing_date is a 'YYYY-MM-DD' string (SEC submissions API format);
+    # parse it so blank/malformed values are kept rather than deleted.
     query = f"""
         SELECT
             COUNT(*) as total,
-            COUNTIF(filing_date <= '{cutoff_date}') as to_delete,
-            COUNTIF(filing_date > '{cutoff_date}') as to_keep
+            COUNTIF(SAFE.PARSE_DATE('%Y-%m-%d', filing_date) <= DATE '{cutoff_date}') as to_delete,
+            COUNTIF(SAFE.PARSE_DATE('%Y-%m-%d', filing_date) > DATE '{cutoff_date}') as to_keep
         FROM `{project_id}.{DAILY_DATASET}.form_d_submission`
     """
     result = client.query(query).to_dataframe()
@@ -65,7 +72,7 @@ def cleanup_parsed_tables(cutoff_date):
     accessions_subquery = f"""
         SELECT accessionnumber
         FROM `{project_id}.{DAILY_DATASET}.form_d_submission`
-        WHERE filing_date <= '{cutoff_date}'
+        WHERE SAFE.PARSE_DATE('%Y-%m-%d', filing_date) <= DATE '{cutoff_date}'
     """
 
     for table in DAILY_PARSED_TABLES:
@@ -89,11 +96,13 @@ def cleanup_tracking_table(cutoff_date):
     """Delete or reset tracking rows in formd_daily_submissions."""
     tracking_table = f"`{project_id}.{DAILY_DATASET}.formd_daily_submissions`"
 
-    # The tracking table uses 'date' column (from the daily index), not filing_date
+    # The tracking table uses 'date' column (from the daily index), not
+    # filing_date, and it is an INT64 in YYYYMMDD form.
     # Delete PARSED rows where date <= cutoff (already in historical)
+    cutoff_int = int(cutoff_date.strftime("%Y%m%d"))
     query = f"""
         DELETE FROM {tracking_table}
-        WHERE status = 'PARSED' AND date <= '{cutoff_date}'
+        WHERE status = 'PARSED' AND date <= {cutoff_int}
     """
     result = client.query(query).result()
     print(f"  Cleaned formd_daily_submissions: deleted PARSED rows with date <= {cutoff_date}")
@@ -106,17 +115,17 @@ def run_cleanup(dry_run=True):
         return
 
     to_delete = get_daily_stats(cutoff_date)
-    if to_delete == 0:
-        print("No daily records to clean up.")
-        return
 
     if dry_run:
         print(f"\n[DRY RUN] Would delete {to_delete} records with filing_date <= {cutoff_date}")
         print("Run with dry_run=False to execute.")
         return
 
-    print(f"\nDeleting records with filing_date <= {cutoff_date}...")
-    cleanup_parsed_tables(cutoff_date)
+    if to_delete == 0:
+        print("No daily parsed records to clean up.")
+    else:
+        print(f"\nDeleting records with filing_date <= {cutoff_date}...")
+        cleanup_parsed_tables(cutoff_date)
     cleanup_tracking_table(cutoff_date)
     print("\nCleanup complete.")
 
