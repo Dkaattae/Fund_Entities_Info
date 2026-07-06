@@ -169,6 +169,16 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   `formd_crawler` with the quarterly bulk, deduped by accession number
   (quarterly wins). The claim came from a stale NOTE in
   `orchestration/flows.py`, now corrected. *(verified 2026-07-03)*
+- [x] **ERA monthly ingestion silently stalled at April 2026.**
+  `era_ingestion.update_monthly` ran EXTRACT on the STRING `date_submitted`
+  column; BigQuery rejected the query and the broad except swallowed it, so
+  the daily ERA flow no-op'd green while May/June 2026 went unloaded. Fixed
+  with SAFE.PARSE_DATE + loud re-raise; May+June backfilled. *(fixed 2026-07-06)*
+- [x] **Broker-dealer withdrawn_month overwritten every month.** Withdrawn
+  master rows were re-stamped with the current month on every merge,
+  destroying withdrawal history. Fixed transition logic (added
+  `Reregistered` status: new start_month, keeps original withdrawn_month),
+  rebuilt master from the raw table, caught up 03–06/2026. *(fixed 2026-07-06)*
 - [ ] **No dbt source freshness checks** (`models/staging/sources.yml`). If
   SEC stops publishing or an ingestion silently stalls, nothing alerts. Add
   `freshness: warn_after/error_after` per source matched to its cadence
@@ -256,6 +266,13 @@ Revisit when Prefect moves to a real deployment:
   earlier history exists, so expect existing quarter counts to shift.
 - [ ] Decide target depth (e.g. 2019+ for a 5-year lookback vs full 2008+)
   and check BigQuery cost impact before loading (~55k filings/year).
+- [ ] **Load RIA data (code ready, never run).** `ria_ingestion.py` mirrors
+  the ERA pipeline but has never been used — no `ria_adv` data exists yet.
+  Plan: refactor `era_ingestion.py` into one shared ADV-filing ingestion
+  module with an ERA/RIA flag (the two files are ~90% identical today), then
+  start loading RIA through it. Until that refactor, leave `ria_ingestion.py`
+  as-is (known: it references an undefined `gcp_credentials`; the refactor
+  resolves it — do not patch in place).
 
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 

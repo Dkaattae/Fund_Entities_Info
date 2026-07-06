@@ -16,7 +16,7 @@ import pandas as pd
 from datetime import date, timedelta
 from google.cloud import bigquery
 
-from state_adviser_download import download_file, find_latest_available
+from state_adviser_download import download_file, find_latest_available, purge_old_files
 from state_adviser_parse import parse_xml
 
 service_account_json_str = os.getenv("BIGQUERY_SERVICE_ACCOUNT_JSON")
@@ -113,6 +113,8 @@ def backfill(start_date: date, end_date: date | None = None):
 
 def update_daily():
     """Check BQ for the last ingested date, then backfill any gap to today."""
+    purge_old_files()
+
     latest_available = find_latest_available()
     if latest_available is None:
         print("No recent feed found on SEC.")

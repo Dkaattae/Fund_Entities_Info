@@ -24,7 +24,7 @@ Three separate pipelines (RIA, ERA, State Adviser), each with their own BigQuery
 
 | File | Description |
 |---|---|
-| `ria_ingestion.py` | RIA (Registered Investment Adviser) pipeline - 12 month backfill |
+| `ria_ingestion.py` | RIA (Registered Investment Adviser) pipeline - code ready, not yet in use (see Status) |
 | `era_ingestion.py` | ERA (Exempt Reporting Adviser) pipeline - backfill + monthly incremental |
 | `util.py` | Shared utilities: URL builder, date helpers, string cleaning |
 | `debug_script.py` | Development/testing script (PostgreSQL target, subset of tables) |
@@ -92,6 +92,11 @@ python state_adviser_ingest.py
 
 ## Status
 
-- RIA backfill: working
+- RIA: **code ready but never run** — no RIA data has been pulled yet. The
+  pipeline mirrors ERA (same SEC ZIPs, IA_* files instead of ERA_*). Future
+  plan: refactor the ERA ingestion code into one shared module with an
+  ERA/RIA flag, then start loading RIA through it (see project_plan.md).
+  Until that refactor, leave `ria_ingestion.py` as-is.
 - ERA backfill + monthly update: working
-- State adviser daily update + backfill + master merge: working
+- State adviser daily update + backfill + master merge: working (snapshot
+  files older than 30 days are purged automatically on each daily run)

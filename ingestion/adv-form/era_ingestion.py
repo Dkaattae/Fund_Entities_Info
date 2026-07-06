@@ -183,8 +183,8 @@ def update_monthly():
     bq_client = bigquery.Client.from_service_account_info(gcp_credentials)
     query = f"""
         SELECT
-            EXTRACT(YEAR FROM MAX(date_submitted)) as year,
-            EXTRACT(MONTH FROM MAX(date_submitted)) as month
+            EXTRACT(YEAR FROM MAX(SAFE.PARSE_DATE('%m/%d/%Y', date_submitted))) as year,
+            EXTRACT(MONTH FROM MAX(SAFE.PARSE_DATE('%m/%d/%Y', date_submitted))) as month
         FROM `{project_id}.era_adv.base`
     """
     try:
@@ -196,8 +196,13 @@ def update_monthly():
             print("No data found in DB. Consider running backfill first.")
             return
     except Exception as e:
-        print(f"Table might not exist yet: {e}")
-        return
+        # Only a missing table is an acceptable reason to skip. Anything else
+        # must fail loudly — a swallowed query error here silently stalled
+        # ERA ingestion at April 2026 (caught 2026-07-06).
+        if "Not found" in str(e):
+            print(f"Table does not exist yet: {e}")
+            return
+        raise
 
     # 3. Check if we are already up to date
     if start_date > last_completed_month:

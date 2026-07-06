@@ -63,33 +63,25 @@ def write_master(df):
     print(load_info)
 
 
-def compare_df(new_mm, new_yy):
-    master_df = read_master()
-    file_month = f'{new_yy}_{new_mm}'
+def merge_month(master_df, new_df, file_month):
+    """Merge one month's snapshot into the master DataFrame.
 
-    # Initialize master from the first available raw month if empty.
+    Status transitions:
+      absent -> present            New          (start_month stamped)
+      present -> present           Active
+      Withdrawn -> present         Reregistered (new start_month, original
+                                                 withdrawn_month kept)
+      present -> absent            Withdrawn    (withdrawn_month stamped on the
+                                                 transition month only, never
+                                                 overwritten on later months)
+    """
     if master_df.empty:
-        print('Master table empty. Initializing from raw table.')
-        new_df = read_raw_for_month(new_mm, new_yy)
-        if new_df.empty:
-            print(f'No raw data for {file_month}. Skipping.')
-            return None
+        new_df = new_df.copy()
         new_df['status'] = 'Active'
         new_df['start_month'] = ''
         new_df['withdrawn_month'] = ''
         new_df['last_observed_month'] = file_month
         return new_df
-
-    latest_master_date = master_df['last_observed_month'].max()
-    latest_master_year, latest_master_month = latest_master_date.split('_')
-    if date(int(new_yy), int(new_mm), 1) <= date(int(latest_master_year), int(latest_master_month), 1):
-        print(f'New file {new_mm}/{new_yy} is not newer than the latest master file date {latest_master_date}. No update needed.')
-        return master_df
-
-    new_df = read_raw_for_month(new_mm, new_yy)
-    if new_df.empty:
-        print(f'No raw data for {file_month}. Skipping.')
-        return master_df
 
     df_merged = pd.merge(
         new_df,
@@ -107,19 +99,84 @@ def compare_df(new_mm, new_yy):
                 df_merged[original_name] = df_merged[original_name].fillna(df_merged[col])
                 df_merged = df_merged.drop(columns=[col])
 
+    prev_status = df_merged['status'].copy()
+
     status_map = {
         'left_only': 'New',
         'right_only': 'Withdrawn',
         'both': 'Active'
     }
+    # astype(object): .map() on the categorical _merge column yields a
+    # Categorical that would reject 'Reregistered' as a new category
+    df_merged['status'] = df_merged['_merge'].map(status_map).astype(object)
 
-    df_merged['status'] = df_merged['_merge'].map(status_map)
+    reregistered = (df_merged['_merge'] == 'both') & (prev_status == 'Withdrawn')
+    df_merged.loc[reregistered, 'status'] = 'Reregistered'
+    df_merged.loc[reregistered, 'start_month'] = file_month
+
+    newly_withdrawn = (df_merged['_merge'] == 'right_only') & (prev_status != 'Withdrawn')
+    df_merged.loc[newly_withdrawn, 'withdrawn_month'] = file_month
+
     df_merged = df_merged.drop(columns=['_merge'])
     df_merged.loc[df_merged['status'] == 'New', 'start_month'] = file_month
-    df_merged.loc[df_merged['status'] == 'Withdrawn', 'withdrawn_month'] = file_month
     df_merged['last_observed_month'] = file_month
 
     return df_merged
+
+
+def compare_df(new_mm, new_yy):
+    master_df = read_master()
+    file_month = f'{new_yy}_{new_mm}'
+
+    # Initialize master from the first available raw month if empty.
+    if master_df.empty:
+        print('Master table empty. Initializing from raw table.')
+        new_df = read_raw_for_month(new_mm, new_yy)
+        if new_df.empty:
+            print(f'No raw data for {file_month}. Skipping.')
+            return None
+        return merge_month(master_df, new_df, file_month)
+
+    latest_master_date = master_df['last_observed_month'].max()
+    latest_master_year, latest_master_month = latest_master_date.split('_')
+    if date(int(new_yy), int(new_mm), 1) <= date(int(latest_master_year), int(latest_master_month), 1):
+        print(f'New file {new_mm}/{new_yy} is not newer than the latest master file date {latest_master_date}. No update needed.')
+        return master_df
+
+    new_df = read_raw_for_month(new_mm, new_yy)
+    if new_df.empty:
+        print(f'No raw data for {file_month}. Skipping.')
+        return master_df
+
+    return merge_month(master_df, new_df, file_month)
+
+
+def rebuild_master():
+    """Rebuild the master table by replaying every month in the BigQuery raw
+    table in order. Repairs status/start_month/withdrawn_month history (e.g.
+    after the withdrawn_month overwrite bug). Writes to BigQuery once, at
+    the end."""
+    query = f"""
+        SELECT DISTINCT file_month
+        FROM `{project_id}.{DATASET_NAME}.{RAW_TABLE}`
+        ORDER BY file_month
+    """
+    months = [row.file_month for row in bq_client.query(query).result()]
+    print(f'Rebuilding master from {len(months)} raw months: {months[0]} -> {months[-1]}')
+
+    master = pd.DataFrame()
+    for file_month in months:
+        yy, mm = file_month.split('_')
+        new_df = read_raw_for_month(mm, yy)
+        if new_df.empty:
+            print(f'{file_month}: no raw rows, skipping')
+            continue
+        master = merge_month(master, new_df, file_month)
+        print(f'{file_month}: {master["status"].value_counts().to_dict()}')
+
+    write_master(master)
+    print(f'Rebuilt master table {DATASET_NAME}.{MASTER_TABLE}')
+    return master
 
 
 def update_monthly(start_month, start_year):
