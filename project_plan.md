@@ -103,6 +103,23 @@ Known errors found on review:
 - [x] `GRYPHON INVESTORS INC` unmerged from Gryphon Fund Group; maps to itself. *(fixed 2026-07-03)*
 - [x] `SSC …` canonicals renamed to `SS&C TECHNOLOGIES`. *(fixed 2026-07-03)*
 
+Full structural audit 2026-07-08 (dup rows, multi-mapping, chains, case/
+whitespace, normalization-aware self-mapping + norm-key collisions): clean
+except three fixes applied:
+
+- [x] `NORTH MOUNTAIN FUND SERVICES` merged into `NORTHMOUNTAIN FUND SERVICES
+  LLC` — all filing variants are the same Danville, CA firm. *(fixed 2026-07-08)*
+- [x] `STEADFAST GROUP` / `THE STEADFAST GROUP` were two canonicals colliding
+  on the same norm key (min() picked one silently); unified display to
+  `THE STEADFAST GROUP` (no ID churn — light norm strips "the"). *(fixed 2026-07-08)*
+- [x] Added `SS&C TECHNOLOGIES` self-mapping row (norm "ss c") so
+  ampersand-spelled filings exact-match; today's filings all spell "SSC" so
+  this is future-proofing. *(fixed 2026-07-08)*
+
+Known caveat (not an error): 4 rows normalize to empty under the aggressive
+normalizer (e.g. `CORPORATION SERVICE COMPANY`) and only match via the fuzzy
+fallback. NB the seed is CRLF — sed/grep against it need `\r`-aware patterns.
+
 > After seed changes: `dbt seed && dbt run -s int_service_provider_links+`.
 > Note: these fixes change the affected `NAME:` canonical_ids — expected churn
 > until the stable provider registry (below) lands.
@@ -126,11 +143,18 @@ Known errors found on review:
 The seed was built from US-centric discovery; international admins fall
 through to self-hash IDs with raw-name display.
 
-1. **GLEIF LEI is the answer for non-US identity** — free bulk golden copy /
-   API, global coverage, includes parent relationships (corporate family for
-   free). Match name+country against GLEIF; a hit upgrades the NAME-hash to
-   `LEI:` and covers most sizeable offshore admins (Cayman, Lux, Ireland,
-   Channel Islands…).
+1. [x] **GLEIF LEI is the answer for non-US identity** — *(data layer done
+   2026-07-08)* `ingestion/gleif/` loads the golden copy Level 1 into BQ
+   (`gleif.lei_records` 3.37M rows, `gleif.lei_names` 4.0M name variants;
+   manual/on-demand, no schedule). dbt: `stg_gleif_lei_*` +
+   `int_fund_admin_lei_map` — one row per fund-admin canonical_id with best
+   LEI candidate, match_tier (1 exact / 2 aggressive+country) and
+   match_confidence (high/medium/low; high = multi-token key + country
+   corroborated). Coverage: 363/1,120 admin identities matched ≈ 71% of
+   filing volume; Lux 74/181, Ireland 31/68, Cayman 18/50. Deliberately a
+   MAPPING table — canonical_id rewiring waits for the provider registry
+   (sequencing #2), which should consume match_confidence='high' rows.
+   Parent relationships need the Level 2 (rr) file — not ingested yet.
 2. Run `scripts/discover_unknown_fund_admins.py` with a country breakdown
    (group unmatched raw_names by filing country) to prioritize which non-US
    admins to seed first.
@@ -145,9 +169,11 @@ through to self-hash IDs with raw-name display.
 
 ## Sequencing
 
-1. ~~Fix the known seed errors~~ ✅ done 2026-07-03.
+1. ~~Fix the known seed errors~~ ✅ done 2026-07-03; full audit + 3 more fixes 2026-07-08.
 2. Provider registry with stable surrogate IDs (unblocks Neo4j + safe history).
-3. GLEIF LEI enrichment (fixes non-US coverage and shrinks the NAME-hash population).
+3. GLEIF LEI enrichment — ✅ data + matching map done 2026-07-08 (see Problem 3);
+   the `NAME:` → `LEI:` ID upgrade itself is deferred INTO the registry step
+   so IDs only churn once.
 4. Crosswalk schema upgrade + review queue.
 5. Grain/uniqueness dbt tests on ERA models and the new registry (existing deferred TODO).
 

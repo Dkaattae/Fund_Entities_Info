@@ -65,6 +65,8 @@ never both be live.
 | `ingestion/form-d/` | Form D historical backfill + daily crawler |
 | `ingestion/broker-dealer/` | Broker-dealer FOCUS report pipeline |
 | `ingestion/CIK/` | SEC CIK lookup reference |
+| `ingestion/attorneys/` | Law-firm scrape (CSV only, not yet in BigQuery) |
+| `ingestion/gleif/` | GLEIF LEI golden copy loader (manual, for provider identity) |
 | `transform/sec_filings/` | dbt project — staging / intermediate / marts |
 | `orchestration/` | Prefect flows and deployment config |
 | `dashboard/` | Streamlit multi-page app backed by BigQuery |

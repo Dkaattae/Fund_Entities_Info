@@ -6,4 +6,4 @@
 
 ## Tooling
 - Preferred ingestion tool: `dlt`.
-- Transform tool: not yet selected.
+- Transform tool: `dbt` (project at `transform/sec_filings/`).

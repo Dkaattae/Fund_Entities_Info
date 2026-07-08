@@ -1,5 +1,6 @@
 ingestion/broker-dealer/files/*.txt
 ingestion/adv-form/state_adviser_files/*.xml
+ingestion/gleif/files/
 
 __pycache__/
 *.pyc

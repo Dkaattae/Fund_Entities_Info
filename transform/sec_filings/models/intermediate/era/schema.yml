@@ -67,6 +67,34 @@ models:
       - name: fund_count
         description: "Count of Form D file numbers in fund_file_numbers."
 
+  - name: int_fund_admin_lei_map
+    description: >
+      One row per fund-admin canonical_id with the best GLEIF LEI candidate
+      (NULL lei when unmatched). Mapping only — does NOT change canonical_id;
+      the stable provider registry consumes this when it lands. match_tier 1 =
+      exact light-normalized name match; tier 2 = aggressive-normalized match
+      corroborated by country (treat as a review queue, not ground truth).
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['canonical_id']
+    columns:
+      - name: canonical_id
+        tests:
+          - not_null
+      - name: match_tier
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: match_confidence
+        description: "high = programmatically consumable; medium/low = review queue."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['high', 'medium', 'low']
+
   - name: int_service_provider_links
     description: >
       Long-format union of every service-provider mention across all ERA filings.

@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_gleif_lei_records
+    description: >
+      One row per LEI from the GLEIF golden copy (Level 1). Countries are
+      ISO-2 codes — join through seed country_iso_map when comparing with the
+      full country names used in ERA filings.
+    columns:
+      - name: lei
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_gleif_lei_names
+    description: >
+      All name variants per LEI (legal, other, transliterated) with the light
+      (normalize_provider_name) and aggressive (normalize_fund_admin_name)
+      normalization keys precomputed. Materialized as a table so the regex
+      normalization runs once per GLEIF refresh, not per downstream query.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['lei', 'name', 'name_type']
+    columns:
+      - name: lei
+        tests:
+          - not_null
+      - name: name
+        tests:
+          - not_null
