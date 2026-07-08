@@ -80,17 +80,25 @@ marketers as (
 custodians as (
     select
         'CUSTODIAN' as provider_type,
-        filing_id,
-        reference_id,
+        s.filing_id,
+        s.reference_id,
         cast(null as int64) as subreference_id,
-        raw_name,
-        sec_number,
+        s.raw_name,
+        s.sec_number,
         cast(null as string) as crd_number,
         cast(null as int64)  as pcaob_number,
-        lei,
-        city, state, country,
-        filing_month
-    from {{ ref('stg_era_custodians') }}
+        -- Only trust an LEI that exists in the GLEIF golden copy. Advisers
+        -- put EINs, CIKs, CRD numbers, and typo'd LEIs in this field
+        -- (~30% of distinct reported values); an unvalidated junk value
+        -- would become a bogus LEI: canonical_id. Invalid values fall
+        -- back to the NAME fingerprint below. Normalized to GLEIF's
+        -- uppercase form so canonical keys are consistent.
+        g.lei,
+        s.city, s.state, s.country,
+        s.filing_month
+    from {{ ref('stg_era_custodians') }} s
+    left join {{ ref('stg_gleif_lei_records') }} g
+        on upper(trim(s.lei)) = g.lei
 ),
 
 unioned as (

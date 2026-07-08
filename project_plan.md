@@ -51,7 +51,7 @@ Verified plan against code:
 | Layer 5 (cohorts / policy) | ❌ Not built |
 | Neo4j knowledge base | ❌ Not started (blocked on stable provider IDs — see below) |
 | Dashboard use cases 1–4 | ✅ Live (pages 1–5) |
-| Use case 5 (non-PCAOB auditors) | ❌ No mart / page; needs PCAOB registry enrichment |
+| Use case 5 (non-PCAOB auditors) | ✅ Done 2026-07-08 (`adviser_auditor_status` + Auditor Watch page; no external registry needed) |
 | Use case 6 (missing ERA filings) | ⚠️ `adviser_filing_compliance` mart exists but no dashboard page |
 | Use case 7 (late audit reports) | ❌ Not built |
 | Recommendation / chatbot | ❌ Not started |
@@ -103,6 +103,13 @@ content-derived ID: `NAME:<md5(normalized name)>` for fund admins,
    admins); keep them as attributes, use them only as fuzzy-match evidence.
    When this lands, the NAME-fingerprint types can switch their canonical_id
    to provider_id in the registered view the same way fund admins did.
+   *Progress 2026-07-08:* CUSTODIAN is now LEI-validated (reported LEIs are
+   only trusted when they exist in GLEIF — ~30% of distinct reported values
+   were EINs/CIKs/CRDs/typos; junk falls back to NAME fingerprint) and wired
+   through the registry (sp_ ids in all marts). Remaining: AUDITOR /
+   PRIME_BROKER / MARKETER, and dropping city/country from the custodian
+   NAME fallback — careful with generic bank names ("FIRST NATIONAL BANK")
+   that are genuinely different firms per country.
 
 ## Problem 2 — Fund admin alias seed is a flat, error-prone CSV
 
@@ -379,6 +386,16 @@ Architecture-level review after the code-error sweep. Ordered by value.
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 
 - [ ] Surface `adviser_filing_compliance` as a dashboard page (use case 6).
-- [ ] PCAOB registry enrichment → non-PCAOB-auditor page (use case 5).
+- [x] ~~PCAOB registry enrichment →~~ non-PCAOB-auditor page (use case 5).
+  *(done 2026-07-08)* No external PCAOB registry needed — Form ADV
+  self-reports `pcaob_registered` / `pcaob_inspected` per auditor (already
+  in `stg_era_auditors`). New mart `adviser_auditor_status` (one row per
+  adviser: auditor PCAOB status, AUM bucket, template-filing signal) + page
+  `9_Auditor_Watch.py`. Findings: 812 lead advisers (29 ≥ $150M), 88 firms
+  registered-but-not-inspected, and a fraud cluster — 98 "advisers" all
+  audited by INDICATOR GLOBAL, all reporting exactly $80M AUM, crypto-scam
+  naming (TOKIOBIT, NYDAO, fake "RENAISSANCE TECHNOLOGIES…"), one signatory
+  literally "JJIMMI1". The `same_auditor_same_aum_advisers` column
+  generalizes that signal; the page quarantines clusters ≥ 5 peers.
 - [ ] Late-audit-report detection (use case 7).
 - [ ] Layer 5 cohort models (AUM size / age / type).

@@ -64,3 +64,13 @@ For funds that have raised their first dollar (first filing where `total_amount_
 - Click any row in the top-raises table for a full detail panel
 
 Sidebar filters: quarter, fund type, max days to first raise.
+
+### 9. Auditor Watch
+ERA advisers whose latest filing reports non-PCAOB (or non-inspected) fund
+auditors — auditor-upgrade leads as AUM approaches SEC-registration
+territory. Separately surfaces suspicious template clusters: many advisers
+sharing one auditor and one identical AUM (scam-farm pattern, e.g. the
+INDICATOR GLOBAL cluster of 98 filers all reporting exactly $80M).
+Backed by `sec_filings_marts.adviser_auditor_status`.
+
+*(Pages 5–8 exist but are not yet documented here — see `pages/`.)*
