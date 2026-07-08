@@ -100,7 +100,7 @@ providers_current_flat as (
         l.canonical_id,
         any_value(coalesce(d.display_name, l.raw_name)) as display_name
     from current_filings f
-    join {{ ref('int_service_provider_links') }} l on l.filing_id = f.filing_id_current
+    join {{ ref('int_service_provider_links_registered') }} l on l.filing_id = f.filing_id_current
     left join {{ ref('service_provider_dim') }}   d using (canonical_id, provider_type)
     where l.canonical_id is not null
     group by f.entity_key, l.provider_type, l.canonical_id
@@ -114,7 +114,7 @@ providers_prior_flat as (
         l.canonical_id,
         any_value(coalesce(d.display_name, l.raw_name)) as display_name
     from prior_filings f
-    join {{ ref('int_service_provider_links') }} l on l.filing_id = f.filing_id_prior
+    join {{ ref('int_service_provider_links_registered') }} l on l.filing_id = f.filing_id_prior
     left join {{ ref('service_provider_dim') }}   d using (canonical_id, provider_type)
     where l.canonical_id is not null
     group by f.entity_key, l.provider_type, l.canonical_id

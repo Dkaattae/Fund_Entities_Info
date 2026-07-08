@@ -6,7 +6,7 @@
 -- when "today" runs ahead of the latest available filing month).
 
 with links as (
-    select * from {{ ref('int_service_provider_links') }}
+    select * from {{ ref('int_service_provider_links_registered') }}
     where canonical_id is not null
 ),
 

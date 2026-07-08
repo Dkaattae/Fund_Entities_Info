@@ -7,7 +7,7 @@
 -- correct value that the majority of advisers reported.
 
 with links as (
-    select * from {{ ref('int_service_provider_links') }}
+    select * from {{ ref('int_service_provider_links_registered') }}
     where canonical_id is not null
 ),
 

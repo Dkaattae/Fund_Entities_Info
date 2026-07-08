@@ -9,7 +9,7 @@
 -- provider changes reported in subsequent other-amendments.
 
 with links as (
-    select * from {{ ref('int_service_provider_links') }}
+    select * from {{ ref('int_service_provider_links_registered') }}
     where canonical_id is not null
 ),
 

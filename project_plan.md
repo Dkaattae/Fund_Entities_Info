@@ -80,16 +80,29 @@ content-derived ID: `NAME:<md5(normalized name)>` for fund admins,
 
 **Fix — mint IDs once, never derive them from content:**
 
-1. Add a persisted **provider registry** table (incremental dbt model or
-   snapshot): first time a new cluster (normalized name + evidence) appears,
-   assign a surrogate key (`sp_000123`) and keep it forever. Matching logic
-   can evolve; assigned IDs do not. `canonical_id` in the links model becomes
-   a lookup against this registry, not an expression.
-2. Keep **match evidence separate from identity**: registry rows carry
-   registry numbers (PCAOB/SEC/LEI/CRD), match_type (registry / seed-alias /
-   fuzzy / manual), and confidence — auditable and reversible.
+1. [x] **Provider registry built.** *(done 2026-07-08)* `provider_registry`
+   (intermediate/era): append-only incremental model, one row per cluster
+   key (the content-derived canonical_id at mint time) with a stable
+   `sp_000123` surrogate. `full_refresh=false` in config — verified that
+   `--full-refresh` cannot re-mint; re-runs append 0 rows with identical
+   checksum; a deleted cluster re-mints at max+1. 5,206 providers minted.
+   Bonus: keyed on match_key alone, so a firm filing under one SEC number as
+   both marketer and custodian gets ONE provider_id (the missing crosswalk).
+   If the table is ever lost, restore from a BigQuery snapshot — never re-run
+   from scratch. Fund-admin canonical_id is wired through it:
+   `int_service_provider_links_registered` swaps in the sp_ id (content key
+   kept as legacy_canonical_id); all four service-provider marts consume the
+   registered view; dashboard pages 2 & 8 verified. Other provider types
+   pass through unchanged until item 3.
+2. [x] **Match evidence separate from identity.** *(done 2026-07-08)*
+   Registry rows carry mint-time evidence: PCAOB/SEC/CRD numbers, reported
+   LEI, GLEIF LEI candidate + confidence from int_fund_admin_lei_map, and
+   match_type (pcaob_number / sec_number / lei / seed_alias /
+   name_fingerprint) + first_seen_filing_month.
 3. Drop city/country from identity for all types (already done for fund
    admins); keep them as attributes, use them only as fuzzy-match evidence.
+   When this lands, the NAME-fingerprint types can switch their canonical_id
+   to provider_id in the registered view the same way fund admins did.
 
 ## Problem 2 — Fund admin alias seed is a flat, error-prone CSV
 
@@ -170,7 +183,8 @@ through to self-hash IDs with raw-name display.
 ## Sequencing
 
 1. ~~Fix the known seed errors~~ ✅ done 2026-07-03; full audit + 3 more fixes 2026-07-08.
-2. Provider registry with stable surrogate IDs (unblocks Neo4j + safe history).
+2. ~~Provider registry with stable surrogate IDs~~ ✅ done 2026-07-08 (fund
+   admins wired through; Neo4j no longer blocked on IDs).
 3. GLEIF LEI enrichment — ✅ data + matching map done 2026-07-08 (see Problem 3);
    the `NAME:` → `LEI:` ID upgrade itself is deferred INTO the registry step
    so IDs only churn once.

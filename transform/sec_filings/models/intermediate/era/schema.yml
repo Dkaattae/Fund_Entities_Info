@@ -95,6 +95,46 @@ models:
               arguments:
                 values: ['high', 'medium', 'low']
 
+  - name: provider_registry
+    description: >
+      Persistent, APPEND-ONLY registry of service-provider identities. One row
+      per cluster key (match_key = the content-derived canonical_id at mint
+      time) with a stable surrogate provider_id (sp_000123) that is never
+      re-minted — full_refresh is disabled in config; if the table is lost,
+      restore from a BigQuery snapshot rather than re-running. Rows carry
+      mint-time evidence (registry numbers, GLEIF LEI candidate, match_type,
+      first_seen_filing_month) kept separate from identity.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['provider_id']
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['match_key']
+    columns:
+      - name: provider_id
+        tests:
+          - not_null
+      - name: match_key
+        tests:
+          - not_null
+      - name: match_type
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['pcaob_number', 'sec_number', 'lei', 'seed_alias', 'name_fingerprint']
+
+  - name: int_service_provider_links_registered
+    description: >
+      int_service_provider_links with canonical_id routed through
+      provider_registry: FUND_ADMIN rows carry the stable sp_ provider_id as
+      canonical_id (content key preserved in legacy_canonical_id); other
+      types unchanged. Downstream marts consume this model, not raw links.
+    columns:
+      - name: canonical_id
+        tests:
+          - not_null
+
   - name: int_service_provider_links
     description: >
       Long-format union of every service-provider mention across all ERA filings.
