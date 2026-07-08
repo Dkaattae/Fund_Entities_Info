@@ -194,10 +194,13 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   pandas-era table (last written 2026-05-14, referenced by no model, ingest
   docstring says masters live in dbt now) — excluded from freshness,
   candidate to drop.
-- [ ] **Dashboard pages crash raw when BigQuery fails.** Only
-  `4_First_Round_Fundraise.py` guards its query. Wrap the shared query path
-  in `bq.py` with try/except + `st.error(...)` so all 8 pages degrade
-  gracefully.
+- [x] **Dashboard pages crash raw when BigQuery fails.** *(fixed 2026-07-08)*
+  Added `run_query(sql)` to `dashboard/bq.py` (try/except → `st.error` with
+  the BQ message + `st.stop`); all 15 query call sites across the 8 pages now
+  route through it. (Page 4's existing "guard" was only an empty-df check,
+  not exception handling.) Verified via `streamlit.testing.v1.AppTest`: all
+  8 pages render against live BQ; a forced bad query shows the error box and
+  halts instead of dumping a traceback.
 
 ## P2 — Operational reliability *(deferred until Prefect is deployed — 2026-07-03 decision)*
 

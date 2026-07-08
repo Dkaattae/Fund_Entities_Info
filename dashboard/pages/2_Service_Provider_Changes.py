@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Service Provider Changes", layout="wide")
 
@@ -86,12 +86,12 @@ def fmt_aum(val) -> str:
 @st.cache_data(ttl=3600)
 def load_filter_options() -> tuple[list[str], list[str]]:
     """Return (sorted FYE months, available change_types) from the mart."""
-    client, project = bq_client()
-    df = client.query(f"""
+    _, project = bq_client()
+    df = run_query(f"""
         SELECT DISTINCT fiscal_year_end, change_type
         FROM `{project}.sec_filings_marts.service_provider_changes`
         WHERE change_type != 'unchanged'
-    """).to_dataframe()
+    """)
     fye_values = sorted(df["fiscal_year_end"].dropna().unique().tolist())
     change_values = sorted(df["change_type"].dropna().unique().tolist())
     return fye_values, change_values
@@ -99,22 +99,22 @@ def load_filter_options() -> tuple[list[str], list[str]]:
 
 @st.cache_data(ttl=3600)
 def load_reporting_years() -> tuple[int, int]:
-    client, project = bq_client()
-    row = client.query(f"""
+    _, project = bq_client()
+    row = run_query(f"""
         SELECT
             MAX(annual_amendment_fiscal_year)     AS current_year,
             MAX(annual_amendment_fiscal_year) - 1 AS prior_year
         FROM `{project}.sec_filings_marts.era_filing_history`
         WHERE is_annual_amendment_era
           AND annual_amendment_fiscal_year IS NOT NULL
-    """).to_dataframe().iloc[0]
+    """).iloc[0]
     return int(row["current_year"]), int(row["prior_year"])
 
 
 @st.cache_data(ttl=3600)
 def load_transitions() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             entity_key,
             legal_name,
@@ -126,13 +126,13 @@ def load_transitions() -> pd.DataFrame:
             iapd_url
         FROM `{project}.sec_filings_marts.era_adviser_transitions`
         ORDER BY date_submitted DESC NULLS LAST
-    """).to_dataframe()
+    """)
 
 
 @st.cache_data(ttl=3600)
 def load_compliance() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             entity_key, legal_name, business_name,
             assets_under_management, fiscal_year_end,
@@ -140,13 +140,13 @@ def load_compliance() -> pd.DataFrame:
             current_reporting_year, due_date, last_filing_date, days_overdue
         FROM `{project}.sec_filings_marts.adviser_filing_compliance`
         ORDER BY days_overdue DESC
-    """).to_dataframe()
+    """)
 
 
 @st.cache_data(ttl=3600)
 def load_provider_changes(provider_type: str) -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             entity_key, legal_name, business_name,
             assets_under_management, fiscal_year_end,
@@ -159,7 +159,7 @@ def load_provider_changes(provider_type: str) -> pd.DataFrame:
         WHERE provider_type = '{provider_type}'
           AND change_type != 'unchanged'
         ORDER BY assets_under_management DESC NULLS LAST, legal_name
-    """).to_dataframe()
+    """)
 
 
 # ---------------------------------------------------------------------------

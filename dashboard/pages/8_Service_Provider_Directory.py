@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Service Provider Directory", layout="wide")
 
@@ -76,8 +76,8 @@ def _fmt_id(col: str, val) -> str:
 
 @st.cache_data(ttl=3600)
 def load_yoy(provider_type: str) -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             y.canonical_id,
             y.display_name,
@@ -97,13 +97,13 @@ def load_yoy(provider_type: str) -> pd.DataFrame:
             USING (canonical_id, provider_type)
         WHERE y.provider_type = '{provider_type}'
         ORDER BY y.count_this_year DESC, y.display_name
-    """).to_dataframe()
+    """)
 
 
 @st.cache_data(ttl=3600)
 def load_non_pcaob_alert() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         WITH non_pcaob_clients AS (
             SELECT
                 spc.display_name  AS auditor_name,
@@ -131,7 +131,7 @@ def load_non_pcaob_alert() -> pd.DataFrame:
         JOIN `{project}.sec_filings_marts.form_d_first_raise` fr
             ON fr.adviser_entity_key = nc.adviser_entity_key
         ORDER BY fr.first_raise_amount DESC
-    """).to_dataframe()
+    """)
 
 
 # ---------------------------------------------------------------------------

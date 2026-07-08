@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Recently Formed Funds", layout="wide")
 
@@ -28,7 +28,7 @@ def _struct_get(item, key: str, default="") -> str:
 
 @st.cache_data(ttl=3600)
 def load_funds() -> pd.DataFrame:
-    client, project = bq_client()
+    _, project = bq_client()
     query = f"""
         SELECT
             accession_number,
@@ -56,7 +56,7 @@ def load_funds() -> pd.DataFrame:
         ORDER BY filing_date DESC
         LIMIT 500
     """
-    return client.query(query).to_dataframe()
+    return run_query(query)
 
 
 def fmt_currency(val) -> str:

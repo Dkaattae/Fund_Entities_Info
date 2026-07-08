@@ -3,7 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Fund Formation by Quarter", layout="wide")
 
@@ -22,18 +22,18 @@ FUND_TYPE_ORDER = [
 
 @st.cache_data(ttl=3600)
 def load_by_quarter() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT quarter_label, fund_type, fund_count
         FROM `{project}.sec_filings_marts.form_d_new_funds_by_quarter`
         ORDER BY filing_quarter, fund_type
-    """).to_dataframe()
+    """)
 
 
 @st.cache_data(ttl=3600)
 def load_state_map() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         WITH us_states AS (
             SELECT s FROM UNNEST([
                 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID',
@@ -91,13 +91,13 @@ def load_state_map() -> pd.DataFrame:
         WHERE state IS NOT NULL
         GROUP BY state, fund_type
         ORDER BY fund_count DESC
-    """).to_dataframe()
+    """)
 
 
 @st.cache_data(ttl=3600)
 def load_platform_funds() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             FORMAT_DATE('%Y-Q%Q', filing_date)              AS quarter_label,
             COALESCE(investment_fund_type, 'Unknown')        AS fund_type,
@@ -108,7 +108,7 @@ def load_platform_funds() -> pd.DataFrame:
           AND LOWER(primary_issuer_name) LIKE '%a series of%'
         GROUP BY quarter_label, fund_type
         ORDER BY quarter_label, fund_type
-    """).to_dataframe()
+    """)
 
 
 df = load_by_quarter()

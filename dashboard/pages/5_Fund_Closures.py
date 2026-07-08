@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Fund Closures", layout="wide")
 
@@ -35,8 +35,8 @@ def fmt_aum(val) -> str:
 
 @st.cache_data(ttl=3600)
 def load_closures() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             entity_key,
             legal_name,
@@ -58,7 +58,7 @@ def load_closures() -> pd.DataFrame:
             fund_continues_elsewhere
         FROM `{project}.sec_filings_marts.era_fund_closures`
         ORDER BY filing_date_current DESC
-    """).to_dataframe()
+    """)
 
 
 df = load_closures()

@@ -2,7 +2,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="Newly Registered State RIAs", layout="wide")
 
@@ -39,7 +39,7 @@ def fmt_aum(val) -> str:
 
 @st.cache_data(ttl=3600)
 def load_state_rias() -> pd.DataFrame:
-    client, project = bq_client()
+    _, project = bq_client()
     query = f"""
         WITH state_firms AS (
             -- One row per firm that has at least one STATE registration.
@@ -77,7 +77,7 @@ def load_state_rias() -> pd.DataFrame:
         INNER JOIN state_firms s USING (firm_crd)
         ORDER BY n.first_registration_date DESC
     """
-    df = client.query(query).to_dataframe()
+    df = run_query(query)
     # Normalize types: BQ returns Int64 (nullable) and dbdate — convert explicitly
     df["first_registration_date"] = pd.to_datetime(df["first_registration_date"].astype(str), errors="coerce")
     df["last_observed_date"] = pd.to_datetime(df["last_observed_date"].astype(str), errors="coerce")

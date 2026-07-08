@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 st.set_page_config(page_title="First Round Fundraise", layout="wide")
 
@@ -44,8 +44,8 @@ def fmt_aum(val) -> str:
 
 @st.cache_data(ttl=3600)
 def load_first_raise() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             file_num,
             primary_issuer_name,
@@ -67,7 +67,7 @@ def load_first_raise() -> pd.DataFrame:
             shared_fund_count
         FROM `{project}.sec_filings_marts.form_d_first_raise`
         ORDER BY first_raise_amount DESC NULLS LAST
-    """).to_dataframe()
+    """)
 
 
 SHARED_CONN_LABELS = ["0", "1–10", "10–30", "30+"]

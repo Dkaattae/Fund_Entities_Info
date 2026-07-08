@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from datetime import date
 
-from bq import bq_client
+from bq import bq_client, run_query
 
 
 def _quarters_ago(n: int) -> pd.Period:
@@ -71,8 +71,8 @@ def fmt_velocity(val) -> str:
 
 @st.cache_data(ttl=3600)
 def load_funds() -> pd.DataFrame:
-    client, project = bq_client()
-    return client.query(f"""
+    _, project = bq_client()
+    return run_query(f"""
         SELECT
             file_num,
             primary_issuer_name,
@@ -95,7 +95,7 @@ def load_funds() -> pd.DataFrame:
             edgar_fund_history_url
         FROM `{project}.sec_filings_marts.form_d_nothing_fund_tracker`
         ORDER BY raising_velocity DESC NULLS LAST
-    """).to_dataframe()
+    """)
 
 
 df = load_funds()
