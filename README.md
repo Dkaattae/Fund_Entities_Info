@@ -28,7 +28,7 @@ transform/sec_filings/   ← dbt (staging → intermediate → marts)
 BigQuery (mart tables)
       │
       ▼
-dashboard/          ← Streamlit app (8 pages)
+dashboard/          ← Streamlit app (9 pages)
 ```
 
 ## Scheduling / Orchestration
@@ -103,7 +103,7 @@ Domain model and identity-resolution rules are documented in [`DomainModel.yml`]
 
 ## Dashboard Pages
 
-The Streamlit app has 8 pages:
+The Streamlit app has 9 pages:
 
 | Page | Description |
 |---|---|
@@ -115,6 +115,7 @@ The Streamlit app has 8 pages:
 | 6. Nothing Fund Tracker | Funds with no offering activity or service-provider relationships |
 | 7. Newly Registered State RIAs | New state-level registered investment advisers from the daily feed |
 | 8. Service Provider Directory | Canonical service provider reference with identity-resolution metadata |
+| 9. Auditor Watch | ERA advisers using non-PCAOB-registered or uninspected auditors, with same-auditor/same-AUM anomaly clusters |
 
 See [`dashboard/README.md`](dashboard/README.md) for setup and run instructions.
 

@@ -1,4 +1,24 @@
 
+# Goal & Definition of Done *(added 2026-07-08)*
+
+**What this is:** a regulatory-intelligence platform over SEC filings
+(Form ADV/ERA, Form D, state advisers) that tracks private funds and the
+service providers around them — who forms, who closes, who switches
+providers, and which auditors/admins look suspect.
+
+**Audience:** owner-operated research tool for now; the live Streamlit
+dashboard is the product surface.
+
+**v1 — definition of done:** all 7 dashboard use cases live on Streamlit
+Cloud, on top of stable provider IDs, with scheduled ingestion green and
+the provider registry backed up. Still open for v1: use case 6 page,
+use case 7 (spike first), registry wiring for AUDITOR / PRIME_BROKER /
+MARKETER, registry backup, GLEIF refresh cadence.
+
+**v2 — after v1:** layer 5 cohort models, service-provider bundle
+recommendation, ontology-driven chatbot. Neo4j only if a graph-only
+question justifies it (see go/no-go decision in the backlog).
+
 # Ontology
 see DomainModel.yml
 
@@ -57,6 +77,15 @@ Verified plan against code:
 | Recommendation / chatbot | ❌ Not started |
 
 Docs drift: README repo-layout table omits `ingestion/attorneys/`.
+
+## Next Steps (agreed 2026-07-08)
+
+1. **Back up `provider_registry`** — scheduled snapshot/export (see P1).
+2. **GLEIF refresh cadence** — decide + document (see Problem 3).
+3. Use case 6 dashboard page (`adviser_filing_compliance` mart already exists).
+4. Registry wiring for AUDITOR / PRIME_BROKER / MARKETER (Problem 1, item 3).
+5. Use case 7 feasibility spike, then mart + page.
+6. Layer 5 cohort models (v2 starts here).
 
 ---
 
@@ -175,6 +204,12 @@ through to self-hash IDs with raw-name display.
    MAPPING table — canonical_id rewiring waits for the provider registry
    (sequencing #2), which should consume match_confidence='high' rows.
    Parent relationships need the Level 2 (rr) file — not ingested yet.
+   - [ ] **Refresh cadence (added 2026-07-08).** The golden copy was a
+     one-time manual load; LEIs are issued and lapse continuously, so the
+     match map drifts stale. Decide + document a cadence — quarterly, or at
+     minimum before each registry-wiring milestone. Re-running is safe: the
+     registry only consumes the map at mint time, so a refresh never churns
+     existing `sp_` ids.
 2. Run `scripts/discover_unknown_fund_admins.py` with a country breakdown
    (group unmatched raw_names by filing country) to prioritize which non-US
    admins to seed first.
@@ -248,6 +283,14 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   not exception handling.) Verified via `streamlit.testing.v1.AppTest`: all
   8 pages render against live BQ; a forced bad query shows the error box and
   halts instead of dumping a traceback.
+- [ ] **Back up `provider_registry` (added 2026-07-08 review — do first).**
+  The registry's recovery story is "restore from a BigQuery snapshot", but
+  nothing creates one and BQ time travel only covers 7 days. An accidental
+  drop or bad full-refresh outside that window re-mints every `sp_` id and
+  silently breaks all history keys — the whole identity architecture depends
+  on this one append-only table. Add a scheduled `CREATE SNAPSHOT TABLE`
+  (or GCS export) piggybacked on an existing monthly workflow, and document
+  the restore procedure next to the model.
 
 ## P2 — Operational reliability *(deferred until Prefect is deployed — 2026-07-03 decision)*
 
@@ -311,8 +354,9 @@ Revisit when Prefect moves to a real deployment:
 - [ ] **Hardcoded `sec_filings_marts` dataset name** in all 8 dashboard pages
   (18 call sites). Centralize in `dashboard/bq.py` via env var.
 - [ ] **Docs drift**: README repo-layout omits `ingestion/attorneys/`;
-  `CLAUDE.md` still says "Transform tool: not yet selected" (it's dbt);
   dead commented-out code in `ingestion/adv-form/util.py:46-52`.
+  *(Fixed along the way: CLAUDE.md now names dbt; README page count updated
+  8 → 9 with Auditor Watch row, 2026-07-08.)*
 
 ## Data coverage — expand historical data (planned)
 
@@ -397,5 +441,20 @@ Architecture-level review after the code-error sweep. Ordered by value.
   naming (TOKIOBIT, NYDAO, fake "RENAISSANCE TECHNOLOGIES…"), one signatory
   literally "JJIMMI1". The `same_auditor_same_aum_advisers` column
   generalizes that signal; the page quarantines clusters ≥ 5 peers.
-- [ ] Late-audit-report detection (use case 7).
+- [ ] Late-audit-report detection (use case 7). **Feasibility spike first
+  (added 2026-07-08):** "late" = the custody-rule 120-day audited-financials
+  distribution deadline (180 for fund-of-funds). Confirm the ERA extract
+  actually carries fiscal-year-end and audit-distribution/delivery fields
+  (ADV Schedule D 7.B.23) before committing to a mart — if they're absent,
+  the use case needs a different definition or data source.
 - [ ] Layer 5 cohort models (AUM size / age / type).
+- [ ] **Neo4j go/no-go decision (added 2026-07-08).** No longer blocked —
+  stable `sp_` ids exist — but don't build it by default: the chatbot plan
+  is SQL-over-BigQuery and bundle recommendation is expressible over
+  `service_provider_clients`. Write down the question only a graph answers
+  (e.g. multi-hop shared-provider paths between advisers); if there isn't
+  one, drop Neo4j from the plan instead of keeping it as ambient scope.
+- [ ] **Broker-dealer use-or-park decision (added 2026-07-08).** BD ingests
+  monthly but feeds no mart or dashboard page. Trigger: when use cases 6–7
+  ship, either connect BD to a concrete use case or pause
+  `broker-dealer-monthly.yml` (data stays in BQ; resuming is cheap).
