@@ -159,6 +159,15 @@ def dbt_test(select: str) -> None:
     _run(["python", "run_dbt.py", "test", "--select", select], cwd=TRANSFORM_DIR)
 
 
+@task(retries=0)
+def dbt_source_freshness(select: str) -> None:
+    """Silent-stall guard: fails the flow when a source's loaded_at has gone
+    stale (thresholds in models/staging/sources.yml). Always runs AFTER the
+    ingest step — a stale source must never block its own self-heal."""
+    _run(["python", "run_dbt.py", "source", "freshness", "--select", select],
+         cwd=TRANSFORM_DIR)
+
+
 # ---------------------------------------------------------------------------
 # Flows
 # ---------------------------------------------------------------------------
@@ -166,6 +175,7 @@ def dbt_test(select: str) -> None:
 @flow(name="state-ria-daily", log_prints=True)
 def state_ria_daily() -> None:
     ingest_state_adviser()
+    dbt_source_freshness("source:state_adviser")
     dbt_run("tag:state_adv")
     dbt_test("tag:state_adv")
 
@@ -179,10 +189,12 @@ def era_monthly() -> None:
     log.info("Target ERA month: %d-%02d", target_year, target_month)
 
     if is_era_month_loaded(target_year, target_month):
-        log.info("Already loaded — skipping.")
+        log.info("Already loaded — skipping ingest.")
+        dbt_source_freshness("source:era_adv")
         return
 
     ingest_era_monthly()
+    dbt_source_freshness("source:era_adv")
     dbt_run("tag:era")
     dbt_test("tag:era")
 
@@ -192,6 +204,7 @@ def form_d_daily() -> None:
     """Daily EDGAR-index crawl + per-filing XML parse into the crawler dataset."""
     crawl_form_d_index()
     parse_form_d_pending()
+    dbt_source_freshness("source:formd_crawler")
     # Crawler rows flow into marts via stg_form_d_* (unioned with the quarterly
     # bulk dataset, deduped by accession number — quarterly wins).
     dbt_run("tag:form_d")
@@ -207,11 +220,13 @@ def form_d_quarterly() -> None:
     log.info("Target Form D quarter: %dQ%d", target_year, target_q)
 
     if is_form_d_quarter_loaded(target_year, target_q):
-        log.info("Already loaded — skipping.")
+        log.info("Already loaded — skipping ingest.")
+        dbt_source_freshness("source:form_d_filings")
         return
 
     backfill_form_d_quarter(target_year, target_q)
     cleanup_form_d_daily_overlap()
+    dbt_source_freshness("source:form_d_filings")
     dbt_run("tag:form_d")
     dbt_test("tag:form_d")
 
@@ -221,6 +236,7 @@ def broker_dealer_monthly() -> None:
     """Daily-in-window: short-circuits (inside update_monthly) once the
     previous month's broker-dealer file is merged into the master table."""
     update_broker_dealer_master()
+    dbt_source_freshness("source:broker_dealer")
 
 
 if __name__ == "__main__":

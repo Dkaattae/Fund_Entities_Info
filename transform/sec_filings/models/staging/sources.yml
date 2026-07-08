@@ -1,17 +1,45 @@
 version: 2
 
+# Source freshness (project_plan P1 — silent-stall guard).
+# Every source carries a loaded_at_field and warn/error thresholds matched to
+# its cadence; `dbt source freshness` is called from orchestration/flows.py
+# after each ingest, so a pipeline that no-ops green (like the ERA stall of
+# 2026-05/06) turns the daily GH Actions run red instead of going unnoticed.
+# Monthly/quarterly thresholds include headroom for SEC publication lag.
+#
+# dlt-loaded tables use _dlt_load_id (unix-epoch load time) — it only advances
+# when rows actually land, which is exactly the stall signal we want.
+
 sources:
   - name: state_adviser
     database: "{{ target.project }}"
     schema: "{{ var('state_raw_dataset') }}"
+    # Daily snapshot feed (state-ria-daily, 06:00 UTC).
+    config:
+      loaded_at_field: "TIMESTAMP(SAFE.PARSE_DATE('%Y-%m-%d', snapshot_date))"
+      freshness:
+        warn_after: {count: 2, period: day}
+        error_after: {count: 5, period: day}
     tables:
       - name: state_adviser_firms_raw
       - name: state_adviser_registrations_raw
       - name: state_adviser_master
+        # Legacy pandas-era master, superseded by dbt-derived state
+        # (state_ria_firm_history etc.); last written 2026-05-14 and
+        # referenced by no model. Excluded from freshness; candidate to drop.
+        config:
+          freshness: null
 
   - name: era_adv
     database: "{{ target.project }}"
     schema: "{{ var('era_raw_dataset') }}"
+    # Monthly SEC ERA archive; era-monthly flow loads it early the following
+    # month (cron window opens on the 5th), so a healthy gap is ~30-35 days.
+    config:
+      loaded_at_field: "TIMESTAMP_SECONDS(CAST(CAST(_dlt_load_id AS FLOAT64) AS INT64))"
+      freshness:
+        warn_after: {count: 40, period: day}
+        error_after: {count: 55, period: day}
     tables:
       - name: base
         description: >
@@ -99,6 +127,13 @@ sources:
   - name: form_d_filings
     database: "{{ target.project }}"
     schema: "{{ var('form_d_raw_dataset') }}"
+    # Quarterly SEC bulk data set; form-d-quarterly loads it once published
+    # (typically within weeks of quarter end), so a healthy gap is ~3 months.
+    config:
+      loaded_at_field: "TIMESTAMP_SECONDS(CAST(CAST(_dlt_load_id AS FLOAT64) AS INT64))"
+      freshness:
+        warn_after: {count: 105, period: day}
+        error_after: {count: 135, period: day}
     tables:
       - name: form_d_submission
       - name: issuer
@@ -108,8 +143,36 @@ sources:
   - name: formd_crawler
     database: "{{ target.project }}"
     schema: "{{ var('form_d_crawler_dataset') }}"
+    # Daily EDGAR index crawl; no filings on weekends/market holidays, so the
+    # warn threshold tolerates a long weekend.
+    config:
+      loaded_at_field: "TIMESTAMP_SECONDS(CAST(CAST(_dlt_load_id AS FLOAT64) AS INT64))"
+      freshness:
+        warn_after: {count: 4, period: day}
+        error_after: {count: 7, period: day}
     tables:
       - name: form_d_submission
       - name: issuer
       - name: offering
       - name: related_persons
+
+  - name: broker_dealer
+    database: "{{ target.project }}"
+    schema: "{{ var('broker_dealer_raw_dataset') }}"
+    # Not consumed by any dbt model (BD master stays in pandas — owner
+    # decision 2026-07); declared for freshness monitoring only. Month N's
+    # file lands ~day 5 of month N+1, so max healthy staleness vs the last
+    # day of the covered month is ~35-40 days.
+    tables:
+      - name: broker_dealer_raw
+        config:
+          loaded_at_field: "TIMESTAMP(LAST_DAY(SAFE.PARSE_DATE('%y_%m', file_month)))"
+          freshness:
+            warn_after: {count: 45, period: day}
+            error_after: {count: 60, period: day}
+      - name: broker_dealer_master
+        config:
+          loaded_at_field: "TIMESTAMP(LAST_DAY(SAFE.PARSE_DATE('%y_%m', last_observed_month)))"
+          freshness:
+            warn_after: {count: 45, period: day}
+            error_after: {count: 60, period: day}

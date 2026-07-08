@@ -179,14 +179,21 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   destroying withdrawal history. Fixed transition logic (added
   `Reregistered` status: new start_month, keeps original withdrawn_month),
   rebuilt master from the raw table, caught up 03–06/2026. *(fixed 2026-07-06)*
-- [ ] **No dbt source freshness checks** (`models/staging/sources.yml`).
-  **Next up — do this first.** The 2026-07-06 sweep found two silent stalls
-  (ERA frozen at April, Form D daily effectively frozen since launch) that
-  freshness checks would have caught on day one; it's a sources.yml-only
-  change and runs inside the existing daily dbt jobs. Add
-  `freshness: warn_after/error_after` per source matched to its cadence
-  (ERA monthly, state feed daily, Form D crawler daily, broker-dealer
-  monthly), using a `loaded_at_field` per table.
+- [x] **dbt source freshness checks.** *(done 2026-07-08)* All five sources
+  now have `loaded_at_field` + warn/error thresholds matched to cadence in
+  `models/staging/sources.yml` (dlt tables use `_dlt_load_id` — advances only
+  when rows land, the exact stall signal; state feed uses `snapshot_date`;
+  broker-dealer uses `LAST_DAY(file_month)`). A `dbt_source_freshness` task
+  in `orchestration/flows.py` runs after ingest in every flow — including the
+  short-circuit branches of era/quarterly/BD — and always AFTER ingest so a
+  stale source never blocks its own self-heal. Verified: 20/20 pass live;
+  negative test (tightened threshold) exits 1 → flow fails → GH Actions red.
+  Broker-dealer required a new `broker_dealer` source (freshness-only, no
+  models — declared with a comment) + `broker_dealer_raw_dataset` var.
+  Finding along the way: BQ `state_adviser.state_adviser_master` is a legacy
+  pandas-era table (last written 2026-05-14, referenced by no model, ingest
+  docstring says masters live in dbt now) — excluded from freshness,
+  candidate to drop.
 - [ ] **Dashboard pages crash raw when BigQuery fails.** Only
   `4_First_Round_Fundraise.py` guards its query. Wrap the shared query path
   in `bq.py` with try/except + `st.error(...)` so all 8 pages degrade
