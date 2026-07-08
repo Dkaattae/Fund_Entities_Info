@@ -13,6 +13,11 @@
 --   * full_refresh=false — `dbt run --full-refresh` will NOT rebuild this
 --     table. Re-minting IDs breaks every downstream history. If the table
 --     is ever lost, restore it from a BigQuery snapshot, do not re-run.
+--     Monthly snapshots land in `registry_backups.provider_registry_snap_YYYYMM`
+--     (era-monthly flow → orchestration/flows.py::backup_provider_registry;
+--     each self-expires after 190 days). Restore from the NEWEST one:
+--       CREATE TABLE `sec_filings_intermediate.provider_registry`
+--       CLONE `registry_backups.provider_registry_snap_YYYYMM`;
 --   * Rows carry mint-time EVIDENCE (registry numbers, GLEIF LEI candidate,
 --     match_type) — auditable and reversible, separate from identity.
 --   * One row per match_key, so a firm reported under the same SEC number

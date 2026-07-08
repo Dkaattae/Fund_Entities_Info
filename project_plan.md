@@ -80,7 +80,7 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
 
 ## Next Steps (agreed 2026-07-08)
 
-1. **Back up `provider_registry`** — scheduled snapshot/export (see P1).
+1. ~~**Back up `provider_registry`**~~ ✅ done 2026-07-08 (see P1).
 2. **GLEIF refresh cadence** — decide + document (see Problem 3).
 3. Use case 6 dashboard page (`adviser_filing_compliance` mart already exists).
 4. Registry wiring for AUDITOR / PRIME_BROKER / MARKETER (Problem 1, item 3).
@@ -283,14 +283,20 @@ Codebase-wide review, 2026-07-03. Grouped by priority.
   not exception handling.) Verified via `streamlit.testing.v1.AppTest`: all
   8 pages render against live BQ; a forced bad query shows the error box and
   halts instead of dumping a traceback.
-- [ ] **Back up `provider_registry` (added 2026-07-08 review — do first).**
-  The registry's recovery story is "restore from a BigQuery snapshot", but
-  nothing creates one and BQ time travel only covers 7 days. An accidental
-  drop or bad full-refresh outside that window re-mints every `sp_` id and
-  silently breaks all history keys — the whole identity architecture depends
-  on this one append-only table. Add a scheduled `CREATE SNAPSHOT TABLE`
-  (or GCS export) piggybacked on an existing monthly workflow, and document
-  the restore procedure next to the model.
+- [x] **Back up `provider_registry`.** *(done 2026-07-08)* The registry's
+  recovery story was "restore from a BigQuery snapshot" but nothing created
+  one, and BQ time travel only covers 7 days — an accidental drop outside
+  that window re-mints every `sp_` id and silently breaks all history keys.
+  Now: `backup_provider_registry` task in `orchestration/flows.py`, called
+  from BOTH branches of the era-monthly flow (idempotent per month via
+  `CREATE SNAPSHOT TABLE IF NOT EXISTS`), writing
+  `registry_backups.provider_registry_snap_YYYYMM` in a separate dataset
+  (survives accidents on the dbt intermediate dataset); each snapshot
+  self-expires after 190 days, so ~6 are kept with zero cleanup code.
+  Restore procedure documented in the model header. Verified live:
+  task run twice through a Prefect flow (2nd call no-op), snapshot holds
+  all 5,300 rows, and a restore rehearsal (clone → checksum diff vs live
+  table) matched exactly.
 
 ## P2 — Operational reliability *(deferred until Prefect is deployed — 2026-07-03 decision)*
 

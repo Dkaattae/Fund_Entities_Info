@@ -150,6 +150,36 @@ def update_broker_dealer_master() -> None:
 
 
 @task(retries=1, retry_delay_seconds=120)
+def backup_provider_registry() -> None:
+    """Monthly snapshot of the append-only provider registry (project_plan
+    P1). The registry must never be rebuilt from scratch — that re-mints
+    every sp_ id — and BigQuery time travel only covers 7 days, so keep
+    rolling snapshots in a separate dataset (survives accidents on the
+    dbt intermediate dataset). Idempotent per month via IF NOT EXISTS;
+    snapshots self-expire after 190 days (~6 kept at steady state).
+
+    Restore (from the newest snapshot; never `dbt run --full-refresh`):
+      CREATE TABLE `sec_filings_intermediate.provider_registry`
+      CLONE `registry_backups.provider_registry_snap_YYYYMM`;
+    """
+    from google.cloud import bigquery
+
+    client, project = _bq_client()
+    backup_dataset = bigquery.Dataset(f"{project}.registry_backups")
+    backup_dataset.location = "US"
+    client.create_dataset(backup_dataset, exists_ok=True)
+
+    snap = f"provider_registry_snap_{date.today():%Y%m}"
+    client.query(f"""
+        CREATE SNAPSHOT TABLE IF NOT EXISTS `{project}.registry_backups.{snap}`
+        CLONE `{project}.sec_filings_intermediate.provider_registry`
+        OPTIONS (expiration_timestamp =
+                 TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 190 DAY))
+    """).result()
+    get_run_logger().info("Registry snapshot ensured: registry_backups.%s", snap)
+
+
+@task(retries=1, retry_delay_seconds=120)
 def dbt_run(select: str) -> None:
     _run(["python", "run_dbt.py", "run", "--select", select], cwd=TRANSFORM_DIR)
 
@@ -191,12 +221,16 @@ def era_monthly() -> None:
     if is_era_month_loaded(target_year, target_month):
         log.info("Already loaded — skipping ingest.")
         dbt_source_freshness("source:era_adv")
+        # Still ensure this month's registry snapshot exists — covers a prior
+        # run that ingested but died before reaching the backup step.
+        backup_provider_registry()
         return
 
     ingest_era_monthly()
     dbt_source_freshness("source:era_adv")
     dbt_run("tag:era")
     dbt_test("tag:era")
+    backup_provider_registry()
 
 
 @flow(name="form-d-daily", log_prints=True)
