@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: stg_pcaob_registered_firms
+    description: >
+      One row per PCAOB firm_id from the registered-firms directory
+      (ingestion/pcaob/). Includes withdrawn/revoked firms — identity
+      validation deliberately spans all registration statuses. Consumed by
+      int_service_provider_links to validate self-reported auditor PCAOB
+      numbers before trusting them as canonical identity.
+    columns:
+      - name: firm_id
+        tests:
+          - not_null
+          - unique
+      - name: firm_name
+        tests:
+          - not_null

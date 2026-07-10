@@ -3,15 +3,15 @@
 -- int_service_provider_links with canonical_id routed through the persistent
 -- provider_registry. Downstream marts consume THIS model, not the raw links.
 --
--- FUND_ADMIN + CUSTODIAN + PRIME_BROKER + MARKETER: canonical_id becomes the
--- stable registry provider_id (sp_…) — a normalizer tweak, seed edit, or LEI
+-- All five provider types: canonical_id becomes the stable registry
+-- provider_id (sp_…) — a normalizer tweak, seed edit, or registry-data
 -- correction re-mints the content-derived key, but the registry keeps the
 -- sp_ id, so history and future graph keys survive. (Custodian LEIs are
 -- validated against GLEIF since 2026-07-08; prime-broker and marketer '8-'
--- SEC file numbers against the BD master since 2026-07-10; marketer '801-'
--- adviser numbers are unvalidated until RIA data is ingested.)
--- AUDITOR keeps its canonical_id unchanged for now — waits on a PCAOB
--- registry source (see project_plan Problem 1 item 3 / Next Steps 4).
+-- SEC file numbers against the BD master since 2026-07-10; auditor PCAOB
+-- numbers against the PCAOB registered-firms directory since 2026-07-10;
+-- marketer '801-' adviser numbers are unvalidated until RIA data is
+-- ingested.)
 --
 -- coalesce fallback: a brand-new cluster that appears before the registry's
 -- next append still gets its content key instead of NULL, and converts to
@@ -33,11 +33,7 @@ select
     l.state,
     l.country,
     l.filing_month,
-    case
-        when l.provider_type in ('FUND_ADMIN', 'CUSTODIAN', 'PRIME_BROKER', 'MARKETER')
-            then coalesce(r.provider_id, l.canonical_id)
-        else l.canonical_id
-    end as canonical_id,
+    coalesce(r.provider_id, l.canonical_id) as canonical_id,
     l.canonical_id as legacy_canonical_id,
     r.provider_id
 from {{ ref('int_service_provider_links') }} l

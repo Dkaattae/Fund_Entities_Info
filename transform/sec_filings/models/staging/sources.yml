@@ -179,6 +179,33 @@ sources:
       - name: lei_names
         description: "One row per (lei, name, name_type): legal + other + transliterated name variants. Matching surface."
 
+  - name: pcaob
+    database: "{{ target.project }}"
+    schema: "{{ var('pcaob_raw_dataset') }}"
+    # PCAOB registered-firms directory + inspection reports (ingestion/pcaob/),
+    # refreshed monthly by the pcaob-monthly flow (cron window 2nd-8th 04:00,
+    # before gleif-monthly and era-monthly so the registry mints new AUDITOR
+    # rows against a fresh list). Full replace each load; load_ts is stamped
+    # by the ingest script (dlt's pandas/arrow path adds no _dlt_load_id).
+    config:
+      loaded_at_field: "load_ts"
+      freshness:
+        warn_after: {count: 40, period: day}
+        error_after: {count: 55, period: day}
+    tables:
+      - name: registered_firms
+        description: >
+          One row per PCAOB firm_id — the COMPLETE directory (~4.1k firms)
+          incl. withdrawn/revoked/disapproved firms; registration_status is
+          an attribute, not an identity gate. Validation surface for
+          self-reported auditor PCAOB numbers.
+      - name: firm_inspections
+        description: >
+          One row per published firm inspection report: firm_id, report
+          date/year, inspection type, Part I.A deficiency counts. Auditor
+          Watch enrichment evidence (cross-checks self-reported
+          pcaob_inspected); not used for identity.
+
   - name: broker_dealer
     database: "{{ target.project }}"
     schema: "{{ var('broker_dealer_raw_dataset') }}"

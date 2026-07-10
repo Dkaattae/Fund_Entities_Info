@@ -2,7 +2,7 @@
     materialized='incremental',
     full_refresh=false,
     on_schema_change='fail',
-    tags=['gleif']
+    tags=['gleif', 'pcaob']
 ) }}
 
 -- Persistent service-provider registry (project_plan "Problem 1").

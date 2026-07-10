@@ -1,0 +1,25 @@
+name: PCAOB Monthly
+
+on:
+  schedule:
+    - cron: "0 4 2-8 * *"  # daily 2nd-8th 04:00 UTC; flow self-skips once this month's directory is loaded. Before GLEIF Monthly (05:00) and ERA Monthly (5th+, 06:00) so the registry mints AUDITOR rows against a fresh PCAOB list.
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r .github/workflows/requirements.txt
+
+      - name: Run flow
+        env:
+          BIGQUERY_SERVICE_ACCOUNT_JSON: ${{ secrets.BIGQUERY_SERVICE_ACCOUNT_JSON }}
+        run: python orchestration/flows.py pcaob

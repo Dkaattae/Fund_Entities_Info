@@ -7,6 +7,7 @@ Flows:
   - form_d_quarterly      Form D bulk + dedupe        (daily-in-window, idempotent)
   - broker_dealer_monthly broker-dealer master merge  (daily-in-window, idempotent)
   - gleif_monthly         GLEIF LEI golden copy       (daily-in-window, idempotent)
+  - pcaob_monthly         PCAOB registered firms      (daily-in-window, idempotent)
 
 The "monthly" / "quarterly" flows are scheduled daily during the SEC release
 window (see serve.py crons) and short-circuit when the target period is
@@ -34,6 +35,7 @@ ADV_INGEST_DIR    = REPO_ROOT / "ingestion" / "adv-form"
 FORM_D_INGEST_DIR = REPO_ROOT / "ingestion" / "form-d"
 BROKER_DEALER_DIR = REPO_ROOT / "ingestion" / "broker-dealer"
 GLEIF_INGEST_DIR  = REPO_ROOT / "ingestion" / "gleif"
+PCAOB_INGEST_DIR  = REPO_ROOT / "ingestion" / "pcaob"
 TRANSFORM_DIR     = REPO_ROOT / "transform" / "sec_filings"
 
 
@@ -106,6 +108,24 @@ def is_gleif_loaded_this_month() -> bool:
 
 
 @task
+def is_pcaob_loaded_this_month() -> bool:
+    """Full replace with no period column; the stamped load_ts column is the
+    cadence signal (same pattern as is_gleif_loaded_this_month)."""
+    from google.api_core.exceptions import BadRequest, NotFound
+
+    client, project = _bq_client()
+    q = f"SELECT MAX(load_ts) AS last_load FROM `{project}.pcaob.registered_firms`"
+    try:
+        last_load = next(client.query(q).result()).last_load
+    except (BadRequest, NotFound):
+        return False
+    if last_load is None:
+        return False
+    today = date.today()
+    return (last_load.year, last_load.month) == (today.year, today.month)
+
+
+@task
 def is_form_d_quarter_loaded(year: int, quarter: int) -> bool:
     client, project = _bq_client()
     start_month = (quarter - 1) * 3 + 1
@@ -169,6 +189,14 @@ def ingest_gleif() -> None:
     """Download the latest GLEIF golden copy (~470 MB zip) and replace the
     gleif.lei_records / gleif.lei_names tables."""
     _run(["python", "gleif_ingestion.py"], cwd=GLEIF_INGEST_DIR)
+
+
+@task(retries=1, retry_delay_seconds=600)
+def ingest_pcaob() -> None:
+    """Fetch the PCAOB registered-firms directory (~43 paged API requests) +
+    inspection-reports CSV and replace the pcaob.registered_firms /
+    pcaob.firm_inspections tables."""
+    _run(["python", "pcaob_ingestion.py"], cwd=PCAOB_INGEST_DIR)
 
 
 @task(retries=1, retry_delay_seconds=600)
@@ -315,6 +343,25 @@ def gleif_monthly() -> None:
     dbt_test("tag:gleif")
 
 
+@flow(name="pcaob-monthly", log_prints=True)
+def pcaob_monthly() -> None:
+    """Daily-in-window: short-circuits once this calendar month's directory
+    is loaded. Scheduled BEFORE gleif-monthly (05:00) and era-monthly (06:00,
+    window opens the 5th) so the provider registry mints new AUDITOR rows
+    against a fresh PCAOB list. A refresh never churns existing sp_ ids —
+    validation results are read by the registry only at mint time."""
+    log = get_run_logger()
+    if is_pcaob_loaded_this_month():
+        log.info("Already loaded this month — skipping ingest.")
+        dbt_source_freshness("source:pcaob")
+        return
+
+    ingest_pcaob()
+    dbt_source_freshness("source:pcaob")
+    dbt_run("tag:pcaob")
+    dbt_test("tag:pcaob")
+
+
 @flow(name="broker-dealer-monthly", log_prints=True)
 def broker_dealer_monthly() -> None:
     """Daily-in-window: the raw load short-circuits (inside update_monthly)
@@ -336,6 +383,7 @@ if __name__ == "__main__":
         "form_d_quarterly": form_d_quarterly,
         "broker_dealer":    broker_dealer_monthly,
         "gleif":            gleif_monthly,
+        "pcaob":            pcaob_monthly,
     }
     arg = sys.argv[1] if len(sys.argv) > 1 else "state"
     fn = routes.get(arg)

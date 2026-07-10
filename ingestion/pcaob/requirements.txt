@@ -1,0 +1,5 @@
+pandas
+requests
+dlt[bigquery]
+google-cloud-bigquery
+pyarrow

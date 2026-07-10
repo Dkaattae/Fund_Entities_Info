@@ -11,12 +11,13 @@ dashboard is the product surface.
 
 **v1 — definition of done:** all 7 dashboard use cases live on Streamlit
 Cloud, on top of stable provider IDs, with scheduled ingestion green and
-the provider registry backed up. Still open for v1: registry wiring for
-AUDITOR (blocked on a PCAOB source — the one remaining wiring item).
+the provider registry backed up.
 *(Done since written: registry backup; GLEIF refresh cadence + schedule;
 use case 6 page; use case 7 mart + page; PRIME_BROKER and MARKETER wiring;
-BD master migrated to dbt — all 2026-07-10. All 7 use cases now have live
-pages; v1 completes once Streamlit Cloud picks up pages 10-11.)*
+BD master migrated to dbt; AUDITOR wiring via the new PCAOB ingestion —
+all 2026-07-10. Provider-identity wiring is complete for all 5 types; all
+7 use cases have live pages; v1 completes once Streamlit Cloud picks up
+pages 10-11.)*
 
 **v2 — after v1:** layer 5 cohort models, service-provider bundle
 recommendation, ontology-driven chatbot. Neo4j only if a graph-only
@@ -137,13 +138,59 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    spike confirmed feasibility (see the backlog item for details), then
    `stg_era_funds` + `fund_audit_compliance` mart + page
    `11_Late_Audit_Reports.py`.
-6. PCAOB registered-firms ingestion → AUDITOR wiring (see the dedicated
-   "PCAOB Ingestion Plan" section below; last v1 wiring item).
+6. ~~PCAOB registered-firms ingestion → AUDITOR wiring~~ ✅ done 2026-07-10
+   (see the "PCAOB Ingestion Plan" section below for outcome + numbers).
+   Provider-identity wiring is now complete for all 5 types.
 7. Layer 5 cohort models (v2 starts here).
 
 ---
 
 # PCAOB Ingestion Plan (AUDITOR wiring — planned 2026-07-10)
+
+**✅ BUILT 2026-07-10 (same day).** Outcome summary; original plan kept below
+for the decision trail:
+
+- **Decision gate result:** Form AP bulk CSV alone validated only 52.1% of
+  the 445 distinct reported pcaob_numbers (84.7% mention-weighted) — the
+  misses were real private-fund auditors that never audit issuers (PwC
+  Channel Islands, KPMG Luxembourg, RSM Cayman…). So the endpoint discovery
+  in option (3) was done: the registered-firms directory page is a JS app
+  over a **Hawksearch JSON search API** (client GUID + endpoint read from
+  the page's `data-*` attributes, pinned in `ingestion/pcaob/
+  pcaob_ingestion.py`). `Content Type = Firm` returns the COMPLETE directory
+  — 4,084 firms incl. withdrawn/revoked — in ~43 paged requests, a strict
+  superset of both the Form AP firm list and the inspections list.
+- **Coverage (measured 2026-07-10):** 399/445 distinct reported numbers
+  validate (89.7%); mention-weighted 36,915/37,260 = **99.1%**. Junk rate
+  10.3% (typos, made-up numbers like 111111/12345, member firms under wrong
+  ids) — consistent with reported LEIs (~30%) and BD numbers (~18%).
+  Withdrawn/revoked firms count as valid identity (same reasoning as
+  withdrawn BDs in the BD master); registration_status is an attribute.
+- **Built:** `ingestion/pcaob/` (dlt → `pcaob.registered_firms` +
+  `pcaob.firm_inspections`, load_ts stamped, raw snapshots in gitignored
+  files/); dbt `pcaob` source w/ freshness + `stg_pcaob_registered_firms`
+  (unique/not_null firm_id); auditors CTE in `int_service_provider_links`
+  nulls unvalidated pcaob_numbers (they fall to NAME fingerprint); AUDITOR
+  added to the sp_ swap — the registered view now swaps ALL five types;
+  `provider_registry` tagged pcaob+gleif so both flows mint; `pcaob_monthly`
+  flow + `pcaob-monthly.yml` (cron 2nd–8th 04:00 UTC, before gleif/era) +
+  serve.py mirror.
+- **Verified:** pcaob_number is numeric in source (no LPAD-truncation class
+  of issue); zero churn — all 399 validated `PCAOB:` keys survived
+  byte-identical, 0 new PCAOB keys, 46 junk clusters demoted to NAME;
+  registry appended exactly 8 rows (junk-fallback clusters), no duplicate
+  match_keys; all 41,983 auditor mentions carry sp_ ids (758 providers: 399
+  via validated PCAOB number, 359 via NAME fallback); 25/25 dbt tests pass;
+  AppTest pages 2, 8, 9 render; flow runs end-to-end cold-start and the
+  guard no-ops on rerun.
+- **Optional follow-up (not built):** registry-verified columns on
+  `adviser_auditor_status` (`pcaob_number_verified`, inspection evidence
+  from `pcaob.firm_inspections`) so Auditor Watch stops relying purely on
+  self-reported flags.
+- **Ops note:** if the directory fetch starts failing, re-inspect the
+  registered-firms page for a rotated Hawksearch client GUID (documented in
+  the ingest script + README). The fetch refuses to replace the table if
+  fewer than 3,500 rows come back.
 
 **Goal:** validate reported auditor PCAOB numbers in `stg_era_auditors`
 against the actual PCAOB registry — the custodian-LEI / prime-broker-BD
@@ -290,6 +337,12 @@ content-derived ID: `NAME:<md5(normalized name)>` for fund admins,
    against the actual registry before being trusted as identity, exactly
    like custodian LEIs were validated against GLEIF (where ~30% of reported
    values turned out to be junk). See Next Steps item 4.
+   *Done 2026-07-10 (later same day):* AUDITOR wired — PCAOB numbers
+   validated against the ingested registered-firms directory (89.7% of
+   distinct reported values valid, 99.1% mention-weighted); all five
+   provider types now flow through the registry sp_ swap. Remaining from
+   this item: dropping city/country from the NAME-fallback fingerprints
+   (still per-type content keys today).
 
 ## Problem 2 — Fund admin alias seed is a flat, error-prone CSV
 

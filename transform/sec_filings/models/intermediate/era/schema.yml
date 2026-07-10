@@ -127,9 +127,10 @@ models:
   - name: int_service_provider_links_registered
     description: >
       int_service_provider_links with canonical_id routed through
-      provider_registry: FUND_ADMIN rows carry the stable sp_ provider_id as
-      canonical_id (content key preserved in legacy_canonical_id); other
-      types unchanged. Downstream marts consume this model, not raw links.
+      provider_registry: all five provider types carry the stable sp_
+      provider_id as canonical_id (content key preserved in
+      legacy_canonical_id). Downstream marts consume this model, not raw
+      links.
     columns:
       - name: canonical_id
         tests:

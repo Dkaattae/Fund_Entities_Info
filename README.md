@@ -68,6 +68,7 @@ never both be live.
 | `ingestion/CIK/` | SEC CIK lookup reference |
 | `ingestion/attorneys/` | Law-firm scrape (CSV only, not yet in BigQuery) |
 | `ingestion/gleif/` | GLEIF LEI golden copy loader (monthly schedule, for provider identity) |
+| `ingestion/pcaob/` | PCAOB registered-firms + inspections loader (monthly schedule, for auditor identity) |
 | `transform/sec_filings/` | dbt project — staging / intermediate / marts |
 | `orchestration/` | Prefect flows and deployment config |
 | `dashboard/` | Streamlit multi-page app backed by BigQuery |
@@ -85,6 +86,8 @@ never both be live.
 | SEC EDGAR Form D bulk | Quarterly ZIP / TSV | Quarterly | `form_d_filings` |
 | SEC EDGAR Form D daily | Daily index + per-filing XML | Daily | `formd_filings_crawler` |
 | SEC Broker-Dealer FOCUS | Monthly TXT | Monthly | _(csv / BQ)_ |
+| GLEIF LEI golden copy | 3×-daily CSV zip (we take monthly) | Monthly | `gleif` |
+| PCAOB registered firms + inspections | Directory JSON API + CSV | Monthly | `pcaob` |
 
 ---
 

@@ -17,6 +17,11 @@ Schedules (UTC):
                                                  (in-flow guard: no-op when month loaded;
                                                   runs before era-monthly so the registry
                                                   mints against a fresh LEI map)
+  * pcaob-monthly      0 4 2-8 * *             daily 2nd-8th of every month at 04:00
+                                                 (in-flow guard: no-op when month loaded;
+                                                  runs before gleif-/era-monthly so the
+                                                  registry mints AUDITOR rows against a
+                                                  fresh PCAOB list)
 
 Stop with Ctrl+C. Process must stay alive for the cron schedules to fire.
 """
@@ -30,6 +35,7 @@ from flows import (
     form_d_quarterly,
     broker_dealer_monthly,
     gleif_monthly,
+    pcaob_monthly,
 )
 
 
@@ -72,6 +78,15 @@ def main() -> None:
                         "Fires daily 2nd-8th, before era-monthly, so the "
                         "provider registry mints against a fresh map; in-flow "
                         "guard short-circuits once the month is loaded.",
+        ),
+        pcaob_monthly.to_deployment(
+            name="pcaob-monthly",
+            cron="0 4 2-8 * *",
+            description="PCAOB registered-firms directory + inspection reports "
+                        "refresh. Fires daily 2nd-8th, before gleif-monthly and "
+                        "era-monthly, so the provider registry mints AUDITOR "
+                        "rows against a fresh list; in-flow guard "
+                        "short-circuits once the month is loaded.",
         ),
     ]
     serve(*deployments)

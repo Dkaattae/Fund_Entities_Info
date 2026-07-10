@@ -4,7 +4,8 @@
 -- Each row preserves the (filing_id, reference_id) link back to the ERA, plus
 -- a canonical_id that identifies the same provider across rows whose
 -- raw names disagree. Canonical-id priority:
---   1. PCAOB number (auditors)
+--   1. PCAOB number (auditors; validated against the PCAOB registered-firms
+--      directory — unvalidated ones fall to NAME)
 --   2. SEC number  (brokers, marketers, custodians; prime-broker numbers are
 --      validated against the BD master — unvalidated ones fall to NAME)
 --   3. LEI         (custodians; validated against GLEIF)
@@ -17,17 +18,25 @@
 with auditors as (
     select
         'AUDITOR' as provider_type,
-        filing_id,
-        reference_id,
+        s.filing_id,
+        s.reference_id,
         cast(null as int64) as subreference_id,
-        raw_name,
+        s.raw_name,
         cast(null as string) as sec_number,
         cast(null as string) as crd_number,
-        pcaob_number,
+        -- Only trust a reported PCAOB number that exists in the registered-
+        -- firms directory (~10% of distinct reported values don't: typos,
+        -- made-up numbers, EY/KPMG member firms reported under a wrong id).
+        -- Invalid values fall back to the NAME fingerprint below. The number
+        -- is numeric in the source, so validated 'PCAOB:' canonical keys stay
+        -- identical to pre-validation ones — no sp_ id churn.
+        case when p.firm_id is not null then s.pcaob_number end as pcaob_number,
         cast(null as string) as lei,
-        city, state, country,
-        filing_month
-    from {{ ref('stg_era_auditors') }}
+        s.city, s.state, s.country,
+        s.filing_month
+    from {{ ref('stg_era_auditors') }} s
+    left join {{ ref('stg_pcaob_registered_firms') }} p
+        on s.pcaob_number = p.firm_id
 ),
 
 fund_admins as (
