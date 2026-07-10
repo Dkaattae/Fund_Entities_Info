@@ -5,8 +5,9 @@
 -- a canonical_id that identifies the same provider across rows whose
 -- raw names disagree. Canonical-id priority:
 --   1. PCAOB number (auditors)
---   2. SEC number  (brokers, marketers, custodians)
---   3. LEI         (custodians)
+--   2. SEC number  (brokers, marketers, custodians; prime-broker numbers are
+--      validated against the BD master — unvalidated ones fall to NAME)
+--   3. LEI         (custodians; validated against GLEIF)
 --   4. FUND_ADMIN: NAME:<first 12 hex of MD5(normalized canonical name)>
 --      Seeds/fund_admin_aliases maps known raw_name → canonical_name.
 --      Unknown admins fall back to normalizing their own raw_name.
@@ -45,20 +46,40 @@ fund_admins as (
     from {{ ref('stg_era_fund_admins') }}
 ),
 
+-- SEC broker-dealer file numbers from our own BD master (monthly SEC list).
+-- film_number IS the file number zero-padded: '8-1447' -> '00801447'
+-- (prefix LPAD 3 + serial LPAD 5).
+bd_file_numbers as (
+    select distinct film_number
+    from {{ source('broker_dealer', 'broker_dealer_master') }}
+    where film_number is not null
+),
+
 primary_brokers as (
     select
         'PRIME_BROKER' as provider_type,
-        filing_id,
-        reference_id,
+        s.filing_id,
+        s.reference_id,
         cast(null as int64) as subreference_id,
-        raw_name,
-        sec_number,
-        crd_number,
+        s.raw_name,
+        -- Only trust a reported SEC file number that exists in the BD master
+        -- (~18% of distinct reported values don't: withdrawn firms, typos).
+        -- Invalid values fall back to the NAME fingerprint below. The
+        -- reported '8-xxxxx' string is kept as-is (formats are uniform, so
+        -- validated canonical keys stay identical to pre-validation ones).
+        case when bd.film_number is not null then s.sec_number end as sec_number,
+        s.crd_number,
         cast(null as int64) as pcaob_number,
         cast(null as string) as lei,
-        city, state, country,
-        filing_month
-    from {{ ref('stg_era_primary_brokers') }}
+        s.city, s.state, s.country,
+        s.filing_month
+    from {{ ref('stg_era_primary_brokers') }} s
+    left join bd_file_numbers bd
+        on regexp_contains(s.sec_number, r'^[0-9]+-[0-9]+$')
+       and concat(
+               lpad(split(s.sec_number, '-')[offset(0)], 3, '0'),
+               lpad(split(s.sec_number, '-')[offset(1)], 5, '0')
+           ) = bd.film_number
 ),
 
 marketers as (

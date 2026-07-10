@@ -177,10 +177,12 @@ sources:
   - name: broker_dealer
     database: "{{ target.project }}"
     schema: "{{ var('broker_dealer_raw_dataset') }}"
-    # Not consumed by any dbt model (BD master stays in pandas — owner
-    # decision 2026-07); declared for freshness monitoring only. Month N's
-    # file lands ~day 5 of month N+1, so max healthy staleness vs the last
-    # day of the covered month is ~35-40 days.
+    # BD master derivation stays in pandas (owner decision 2026-07), but
+    # broker_dealer_master is consumed read-only by int_service_provider_links
+    # since 2026-07-10: film_number (the zero-padded SEC 8- file number,
+    # '8-1447' -> '00801447') validates reported prime-broker SEC numbers.
+    # Month N's file lands ~day 5 of month N+1, so max healthy staleness vs
+    # the last day of the covered month is ~35-40 days.
     tables:
       - name: broker_dealer_raw
         config:

@@ -94,8 +94,8 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    custodian LEI validation (~30% of reported LEIs were junk; expect the
    same class of typos/wrong-numbers here). Not scheduled for a specific
    date; PRIME_BROKER / MARKETER can proceed independently of it.
-   **PRIME_BROKER approach decided 2026-07-10 — validate the reported SEC
-   file number against our own BD master; no new data source needed.**
+   **PRIME_BROKER: ✅ wired 2026-07-10** (validate the reported SEC
+   file number against our own BD master; no new data source needed).
    `stg_era_primary_brokers.sec_number` ('8-34354') joins
    `broker_dealer.broker_dealer_master.film_number`, which IS the SEC
    broker-dealer file number zero-padded ('8-1447' → '00801447': prefix
@@ -108,6 +108,18 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    it later). 276 name-only tuples fall back to NAME fingerprint like the
    other types. This makes the BD master a consumed identity registry —
    resolving the "broker-dealer use-or-park decision" (backlog) toward USE.
+   *Implemented same day:* BD-master validation join in
+   `int_service_provider_links` (reported '8-xxxxx' strings kept as-is —
+   formats verified uniform, so the 108 validated keys' canonical_ids were
+   unchanged and no existing sp_ ids churned); PRIME_BROKER added to the
+   sp_-swap list in `int_service_provider_links_registered`. Registry
+   appended exactly 33 rows (junk-SEC fallback clusters). Verified: all
+   6,232 PB mentions carry sp_ ids (108 providers via validated SEC number,
+   279 via NAME fallback), 19/19 tests pass, pages 2 & 8 render, and the
+   crosswalk works — Goldman/Merrill/UBS each hold ONE sp_ id across their
+   PRIME_BROKER/CUSTODIAN/MARKETER roles. Remaining wiring: MARKETER (could
+   reuse the same BD-master validation for its sec_numbers), AUDITOR
+   (blocked on PCAOB source).
 5. Use case 7 feasibility spike, then mart + page.
 6. Layer 5 cohort models (v2 starts here).
 
