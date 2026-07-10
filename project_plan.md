@@ -20,7 +20,7 @@ the provider registry backed up.
 | Stable provider IDs (all 5 types through the registry) | ✅ complete — AUDITOR wired 2026-07-10 via PCAOB ingestion, the last type |
 | Provider registry backed up | ✅ monthly snapshots since 2026-07-08 |
 | All 7 use-case pages built | ✅ pages 1–11 in repo, AppTest-verified |
-| Use cases live on Streamlit Cloud | ⏳ owner check — app is auth-walled; confirm pages 10 (Missing ERA Filings) and 11 (Late Audit Reports) appear after the latest push; reboot the app if not |
+| Use cases live on Streamlit Cloud | ✅ owner verified 2026-07-10 — pages 10/11 showing on the live app |
 | Scheduled ingestion green | ⏳ was RED 2026-07-09/10: unpinned workflow deps let pip backtrack dbt to 1.7 (can't parse the `arguments:` test-config key). Pin `dbt-bigquery>=1.11,<1.12` landed 2026-07-10 13:48 (commit 406f048), AFTER the day's failed runs. Verified locally same evening: a fresh venv resolve of `.github/workflows/requirements.txt` yields dbt-core 1.11.12 / protobuf 6.33.6 and `dbt source freshness` passes with it. Confirm tomorrow's scheduled runs (~08:00–12:00 UTC) are green — the token can't dispatch workflows manually. |
 
 *(Done since written: registry backup; GLEIF refresh cadence + schedule;
@@ -30,7 +30,198 @@ all 2026-07-10.)*
 
 **v2 — after v1:** layer 5 cohort models, service-provider bundle
 recommendation, ontology-driven chatbot. Neo4j only if a graph-only
-question justifies it (see go/no-go decision in the backlog).
+question justifies it. **Detailed plan: see "# v2 Plan" section below
+(drafted 2026-07-10).**
+
+# v2 Plan (drafted 2026-07-10 — planning only, no v2 code yet)
+
+**Theme:** v1 *tracks what happened* (formations, closures, switches,
+compliance flags). v2 *answers questions and recommends*: segment the
+market (cohorts), suggest provider bundles, and let the owner ask ad-hoc
+questions in English. Everything stays SQL-over-BigQuery on the stable
+`sp_` identity layer v1 finished; the dashboard remains the product surface.
+
+**What v2 is deliberately NOT:** no Neo4j up front (deferred behind the
+chatbot gate — decision below), no
+ML models where counting answers the question, no multi-tenant/product
+hardening — still an owner-operated research tool.
+
+## Phase 0 — platform hardening (do first, ~small)
+
+Cheap insurance before building on top; all are existing backlog items
+promoted because v2 stacks more weight on the same pipelines:
+
+1. **Lock `.github/workflows/requirements.txt`** (pip-compile or freeze).
+   Unpinned deps broke all CI twice (fastapi 2026-06-16, dbt→1.7 downgrade
+   2026-07-09/10). Do dashboard + ingestion requirements at the same time —
+   Streamlit Cloud deploys are equally unpinned.
+2. **pytest + dbt-compile CI on push** (backlog "Unit tests + CI"): the two
+   silent July bugs (withdrawn_month overwrite, EXTRACT-on-STRING) were in
+   small pure functions. Targets: `merge_month()`, date/month helpers,
+   `parse_xml_schema` (fixture exists), plus `dbt compile` as a parse gate.
+3. **Prefect go/no-go stays deferred** (P2): GH Actions remains the
+   scheduler until something forces a real Prefect deployment. Revisit only
+   if v2 adds a pipeline that needs event-driven runs or alerting.
+4. Partition/cluster and incremental marts: only when a mart passes ~1 GB
+   (P3 thresholds unchanged). Not expected during v2.
+
+## Phase 1 — Layer 5 cohort models (no new data needed)
+
+Cohorts turn "3,409 overdue funds" into "overdue funds are concentrated in
+sub-$150M, non-US-domiciled, first-year advisers" — and they are the
+segmentation the recommender conditions on.
+
+**Cohort dimensions** (all derivable from existing models):
+
+- `aum_bucket` — from `int_era_annual_snapshot.assets_under_management`
+  (NOT the raw filing: amendments leave AUM blank = unchanged). Buckets at
+  regulatory boundaries: <$25M / $25–150M / ≥$150M (the ERA exemption
+  ceiling; Auditor Watch already flags ≥$150M) / ≥$1B.
+- `adviser_age_bucket` — age since first regulatory appearance:
+  min(first ERA filing, earliest linked Form D first_sale_date,
+  incorporation date where reported). **Caveat:** ERA history starts at
+  backfill_start_year=2025, so ERA-only age is left-censored; the Form D
+  historical backfill (Phase 2) is what makes age honest beyond ~2 years.
+- `strategy_mix` — from `stg_era_funds.fund_type` (Schedule D 7.B.1:
+  hedge / private equity / venture / real estate / liquidity / securitized
+  / other), rolled up per adviser (dominant type + is_multi_strategy flag,
+  plus is_fund_of_funds).
+- `domicile_mix` — US-only vs offshore (Cayman/Lux/Ireland/other) from
+  fund country + adviser main_country.
+- `fund_count_bucket` and `org_form` as secondary dims.
+
+**Models** (new `marts/era` unless noted):
+
+- `adviser_cohort_dim` — one row per entity_key (latest state) with all
+  cohort columns; grain-tested.
+- `adviser_cohort_history` — one row per (entity_key, reporting_year) so
+  cohort migration (an adviser crossing $150M) is queryable; built on
+  `int_era_annual_snapshot`.
+- `provider_cohort_share` — provider × provider_type × cohort × year:
+  client count, share within cohort, net wins/losses joined from
+  `service_provider_changes`. This is the market-share cut the dashboard
+  and the recommender both read.
+
+**Surface:** extend page 8 (Service Provider Directory) with a cohort
+filter, or a new "Market Share by Cohort" page. Acceptance: cohort columns
+grain-tested; one page live; provider_cohort_share reconciles to
+service_provider_clients totals.
+
+## Phase 2 — data-depth enablers (parallel track, feeds Phases 1/3)
+
+Ordered by value-per-effort; none block Phase 1 starting:
+
+1. **Form D historical backfill to 2019** (5-year lookback). Enables honest
+   adviser/fund age and gives the recommender formation-time provider
+   choices to learn from. Read `ingestion/form-d/README.md` concerns first
+   (older ZIP schemas differ; first-raise marts will correctly reclassify).
+   ~55k filings/yr × 5 = ~275k filings; check BQ cost before loading. Full
+   2008+ depth only if a v2 question actually needs it.
+2. **RIA ingestion** via the planned shared ADV-module refactor
+   (`era_ingestion.py` + `ria_ingestion.py` are ~90% identical). Unlocks:
+   the full SEC adviser universe (cohorts stop being ERA-only), validation
+   of marketer '801-' numbers (currently passed through unvalidated), and
+   a bigger training base for the recommender. This is the largest enabler
+   — schedule it mid-v2, not first.
+3. **GLEIF Level 2 (rr) parent relationships** → `parent_group` on the
+   provider registry/crosswalk (Problem 2 item 1). Needed by the
+   recommender to stop treating Apex-office-A → Apex-office-B as a
+   "switch" or a "recommendation". Pairs with the crosswalk schema upgrade
+   + review queue already specced in Problem 2.
+4. **FINRA broker-dealer firm list** (access details in backlog): CRD ↔
+   file-number crosswalk on the BD master. Small, self-contained.
+5. **Auditor Watch enrichment** (PCAOB follow-up): add
+   `pcaob_number_verified` + inspection evidence from the already-loaded
+   `pcaob.firm_inspections` to `adviser_auditor_status`, so page 9 stops
+   relying purely on self-reported flags.
+
+## Phase 3 — service-provider bundle recommendation (needs Phase 1 + 2.3)
+
+**Definition:** an adviser's *bundle* = its current set of providers across
+the 5 roles (from `int_service_provider_links_registered`, latest filing,
+keyed by stable sp_ ids, rolled up to parent_group).
+
+**Approach — counting before ML.** At this scale (~20k advisers, ~5k
+providers) market-basket statistics answer the question:
+
+- `provider_pair_affinity` mart: for provider pairs (A-as-admin,
+  B-as-auditor…) within a cohort — support, confidence, lift vs cohort
+  baseline. Computed in SQL; no new infra.
+- `bundle_recommendation` view: given (cohort, partial bundle) → ranked
+  co-occurring providers per missing role, excluding same-parent trivia,
+  with "N advisers like this use X" as the explanation. Explainability is
+  the product: every suggestion cites its counts.
+
+**Evaluation before surfacing:** holdout = advisers first seen in the
+latest year; score top-3 hit rate per role against (a) cohort-popularity
+baseline and (b) global popularity. Ship only if it beats (a). Record the
+numbers here.
+
+**Surface:** new dashboard page ("Provider Bundles"): pick cohort + known
+providers → ranked suggestions per empty role. Cold start (empty bundle) =
+cohort market-share leaders from `provider_cohort_share`.
+
+## Phase 4 — ontology-driven chatbot (needs Phase 1; independent of 2/3)
+
+**Architecture (SQL-over-BigQuery, no graph):** Streamlit chat page →
+LLM (Claude API) with a *semantic-layer prompt* = DomainModel.yml +
+curated mart/column descriptions from schema.yml → model emits SQL →
+guardrails execute it → model composes the answer from returned rows,
+always showing the SQL it ran.
+
+**Guardrails (non-negotiable, in this order):**
+- Separate read-only service account with access to the marts dataset ONLY
+  (not raw/intermediate/registry).
+- SELECT-only statement validation + allowlisted tables.
+- `dry_run` first: reject queries over a bytes-scanned cap; enforce LIMIT
+  and a query timeout.
+- No multi-turn write-back, no DDL, secrets via Streamlit secrets
+  (`ANTHROPIC_API_KEY`).
+
+**Build order:** (1) curate schema.yml descriptions — they become the
+prompt, and gaps become wrong SQL; (2) eval set FIRST: the 7 predefined
+use-case questions plus ~20 phrasings, scored for SQL correctness against
+known answers; (3) only then the chat page. Model choice + cost cap
+decided at build time (small/mid tier likely sufficient for SQL
+generation; measure on the eval set).
+
+**Success bar:** ≥90% correct on the eval set; every answer cites its SQL;
+a failed/blocked query degrades to "here's the SQL I would run" instead of
+hallucinated numbers.
+
+## Neo4j — DEFERRED, with the chatbot as its decision gate (owner call 2026-07-10)
+
+Not dropped — deferred. The SQL chatbot (Phase 4) goes first because the
+candidate graph questions (multi-hop shared-provider paths between
+advisers; fraud rings à la INDICATOR GLOBAL — shared auditor + identical
+AUM + shared signatory) are 1–2 joins at current scale, and the fraud
+cluster was in fact found with SQL in v1. **The trigger to adopt Neo4j is
+the chatbot eval:** if the SQL agent proves not good enough — repeatedly
+failing or producing unreadable SQL on graph-shaped questions (≥3-hop
+traversals, path/ring discovery) — build the Neo4j knowledge base then,
+loading `service_provider_clients` + the registry (stable sp_ ids make
+this safe now). Until that trigger fires, no graph work.
+
+## Sequencing
+
+1. Phase 0 (hardening) — immediately, small.
+2. Phase 1 (cohorts) — first feature; no new data needed.
+3. Phase 2 starts in parallel after Phase 1's models exist: 2.1 Form D
+   backfill and 2.5 Auditor Watch enrichment first (cheap), then 2.3 GLEIF
+   L2 + crosswalk (recommender prerequisite), 2.2 RIA (largest), 2.4 FINRA.
+4. Phase 3 (recommender) — after Phase 1 + 2.3.
+5. Phase 4 (chatbot) — anytime after Phase 1; can be pulled earlier since
+   it depends only on schema docs + eval set, not on Phases 2–3.
+
+**v2 definition of done:** cohort models + one cohort page live;
+recommender beats the cohort-popularity baseline and has a page; chatbot
+answers the 7 canonical questions at ≥90% on the eval set from the live
+dashboard; Neo4j decision resolved via the chatbot gate (stay deferred,
+or build it if the SQL agent falls short on graph-shaped questions);
+Phase-0 locks and CI in place. Decision gates recorded here as they're
+hit (Form D depth, RIA timing, Neo4j trigger).
+
+---
 
 # Ontology
 see DomainModel.yml
@@ -696,12 +887,13 @@ Architecture-level review after the code-error sweep. Ordered by value.
   overdue-reports table. Live numbers: 3,409 overdue funds / 1,379
   advisers / $508B fund GAV; 498 funds carry qualified opinions.
 - [ ] Layer 5 cohort models (AUM size / age / type).
-- [ ] **Neo4j go/no-go decision (added 2026-07-08).** No longer blocked —
-  stable `sp_` ids exist — but don't build it by default: the chatbot plan
-  is SQL-over-BigQuery and bundle recommendation is expressible over
-  `service_provider_clients`. Write down the question only a graph answers
-  (e.g. multi-hop shared-provider paths between advisers); if there isn't
-  one, drop Neo4j from the plan instead of keeping it as ambient scope.
+- [x] **Neo4j go/no-go decision (added 2026-07-08).** ~~Write down the
+  question only a graph answers; if there isn't one, drop it.~~
+  *Resolved 2026-07-10: DEFERRED behind the chatbot gate (owner call —
+  deferred, not dropped).* The SQL chatbot ships first; if its eval shows
+  the SQL agent isn't good enough on graph-shaped questions (≥3-hop
+  shared-provider paths, ring discovery), build Neo4j then. See the
+  "Neo4j — DEFERRED" subsection of the v2 Plan.
 - [x] **Broker-dealer use-or-park decision (added 2026-07-08).** ~~BD ingests
   monthly but feeds no mart or dashboard page. Trigger: when use cases 6–7
   ship, either connect BD to a concrete use case or pause
