@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: stg_broker_dealer_snapshots
+    description: >
+      Monthly SEC broker-dealer list snapshots. Grain: one row per
+      (cik, file_month) — enforced upstream by the dlt merge primary key,
+      guarded here because a duplicate would fan out the master replay.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['cik', 'file_month']
+    columns:
+      - name: cik
+        tests:
+          - not_null
+
+  - name: int_broker_dealer_master
+    description: >
+      One row per CIK with latest-month status (New / Active / Reregistered /
+      Withdrawn), presence-streak start_month, most recent withdrawn_month,
+      and entity attributes from the last month present. dbt port of the
+      retired pandas merge (2026-07-10); film_number is the zero-padded SEC
+      8- file number used to validate prime-broker identities.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['cik']
+    columns:
+      - name: cik
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['New', 'Active', 'Reregistered', 'Withdrawn']
+      - name: last_observed_month
+        tests:
+          - not_null

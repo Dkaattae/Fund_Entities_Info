@@ -436,19 +436,22 @@ Revisit when Prefect moves to a real deployment:
 
 Architecture-level review after the code-error sweep. Ordered by value.
 
-- [ ] *(deferred 2026-07-06 — owner decision: BD is small, pandas handles it
-  fine, and BD may be abandoned later; revisit ONLY if broker-dealer data
-  gets used in the dashboard)* **Derive the broker-dealer master in dbt, not pandas.**
-  `broker_dealer_raw` already holds every monthly snapshot in BigQuery, so
-  status / start_month / withdrawn_month / Reregistered are pure
-  window-function logic over `file_month` — exactly the pattern the state
-  adviser pipeline already uses ("raw snapshots in BQ, derived state in
-  dbt"). Moving it kills the merge-script bug class entirely (this week's
-  withdrawn_month bug lived there), makes rebuilds a `dbt run`, and gets
-  grain tests for free. `merge_files.py` shrinks to just the raw loader.
-  While there: load `BrokerDealerList.py`'s auditor-scrape output to BQ
-  instead of a local CSV — it's the input use case 5 (non-PCAOB auditors)
-  needs, and today it's disconnected from the warehouse.
+- [x] **Derive the broker-dealer master in dbt, not pandas.** *(done
+  2026-07-10 — the 2026-07-06 deferral's trigger fired: BD master now feeds
+  the identity layer via PRIME_BROKER validation, so the owner reversed the
+  decision.)* `stg_broker_dealer_snapshots` + `int_broker_dealer_master`
+  (tag `broker_dealer`) replay the raw monthly snapshots with window
+  functions — same status semantics incl. Reregistered and the pandas
+  quirks (initial-load rows have NULL start_month, was ''). Verified
+  column-identical against the pandas-built table across all 3,609 CIKs
+  before switchover. `merge_files.py` and `backfill.py` shrank to raw-only
+  loaders; the flow runs raw load → freshness → dbt run/test tag:broker_dealer;
+  `int_service_provider_links` now refs the dbt model. Legacy
+  `broker_dealer.broker_dealer_master` is no longer written or consumed
+  (freshness: null; candidate to drop, like state_adviser_master).
+  Still open from this item: load `BrokerDealerList.py`'s auditor-scrape
+  output to BQ instead of a local CSV — relevant again when the PCAOB
+  source lands for AUDITOR wiring.
 - [~] **One scheduler as source of truth.** *(mostly done 2026-07-06)*
   Documented in the root README: GH Actions is authoritative today (chosen
   over deploying Prefect for infra/cost reasons); `serve.py` mirrors the

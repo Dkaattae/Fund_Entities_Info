@@ -177,10 +177,11 @@ sources:
   - name: broker_dealer
     database: "{{ target.project }}"
     schema: "{{ var('broker_dealer_raw_dataset') }}"
-    # BD master derivation stays in pandas (owner decision 2026-07), but
-    # broker_dealer_master is consumed read-only by int_service_provider_links
-    # since 2026-07-10: film_number (the zero-padded SEC 8- file number,
-    # '8-1447' -> '00801447') validates reported prime-broker SEC numbers.
+    # Raw monthly SEC broker-dealer list snapshots (dlt merge on
+    # cik+file_month). The master is derived in dbt since 2026-07-10
+    # (int_broker_dealer_master, replacing the pandas merge in
+    # merge_files.py); its film_number — the zero-padded SEC 8- file number,
+    # '8-1447' -> '00801447' — validates reported prime-broker SEC numbers.
     # Month N's file lands ~day 5 of month N+1, so max healthy staleness vs
     # the last day of the covered month is ~35-40 days.
     tables:
@@ -191,8 +192,8 @@ sources:
             warn_after: {count: 45, period: day}
             error_after: {count: 60, period: day}
       - name: broker_dealer_master
+        # Legacy pandas-built table, superseded by int_broker_dealer_master
+        # (verified column-identical at migration 2026-07-10); no longer
+        # written or consumed. Excluded from freshness; candidate to drop.
         config:
-          loaded_at_field: "TIMESTAMP(LAST_DAY(SAFE.PARSE_DATE('%y_%m', last_observed_month)))"
-          freshness:
-            warn_after: {count: 45, period: day}
-            error_after: {count: 60, period: day}
+          freshness: null

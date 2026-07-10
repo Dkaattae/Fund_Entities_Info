@@ -1,6 +1,5 @@
 from datetime import date
 from load_raw_to_bq import load_raw_file_to_bq
-from merge_files import compare_df, write_master, DATASET_NAME, MASTER_TABLE
 
 
 def iter_months(start_month, start_year, end_month, end_year):
@@ -21,33 +20,25 @@ def iter_months(start_month, start_year, end_month, end_year):
 
 def backfill(start_month, start_year, end_month, end_year):
     """
-    Run the broker-dealer pipeline for every month between
+    Ingest the raw broker-dealer file for every month between
     (start_month, start_year) and (end_month, end_year), inclusive.
 
     Years are 2-digit strings (e.g. '24', '26').
-    For each month it (1) ingests the raw file into the BigQuery raw table,
-    then (2) merges it into the master table.
+    The master is no longer merged here — it is derived in dbt
+    (int_broker_dealer_master); run `dbt run --select tag:broker_dealer`
+    after a backfill to fold the new months in.
     """
     months = list(iter_months(start_month, start_year, end_month, end_year))
     print(f'Backfilling {len(months)} months: {months[0]} -> {months[-1]}')
 
     for mm_str, yy_str in months:
         print(f'\n=== {mm_str}/{yy_str} ===')
-
-        # Step 1: download raw file locally + ingest to BigQuery raw table
         raw_df = load_raw_file_to_bq(mm_str, yy_str)
         if raw_df is None:
-            print(f'Raw file unavailable for {mm_str}/{yy_str}, skipping merge.')
-            continue
+            print(f'Raw file unavailable for {mm_str}/{yy_str}, skipping.')
 
-        # Step 2: merge raw into master in BigQuery
-        df = compare_df(mm_str, yy_str)
-        if df is None or df.empty:
-            print(f'No data merged for {mm_str}/{yy_str}.')
-            continue
-        print(df.shape)
-        write_master(df)
-        print(f'Updated master table {DATASET_NAME}.{MASTER_TABLE} for {mm_str}/{yy_str}')
+    print('\nRaw backfill done. Rebuild the master with: '
+          'dbt run --select tag:broker_dealer  (from transform/sec_filings)')
 
 
 if __name__ == "__main__":

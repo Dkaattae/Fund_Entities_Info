@@ -61,9 +61,9 @@ def main() -> None:
         broker_dealer_monthly.to_deployment(
             name="broker-dealer-monthly",
             cron="0 9 5-31 * *",
-            description="Broker-dealer monthly file -> raw -> master merge. "
-                        "Fires daily after the 5th; in-flow guard "
-                        "short-circuits once the month is merged.",
+            description="Broker-dealer monthly file -> raw load -> dbt master "
+                        "rebuild. Fires daily after the 5th; in-flow guard "
+                        "short-circuits the load once the month is in raw.",
         ),
         gleif_monthly.to_deployment(
             name="gleif-monthly",

@@ -51,7 +51,7 @@ fund_admins as (
 -- (prefix LPAD 3 + serial LPAD 5).
 bd_file_numbers as (
     select distinct film_number
-    from {{ source('broker_dealer', 'broker_dealer_master') }}
+    from {{ ref('int_broker_dealer_master') }}
     where film_number is not null
 ),
 

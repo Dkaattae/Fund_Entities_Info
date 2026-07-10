@@ -172,10 +172,11 @@ def ingest_gleif() -> None:
 
 
 @task(retries=1, retry_delay_seconds=600)
-def update_broker_dealer_master() -> None:
+def ingest_broker_dealer_raw() -> None:
     """merge_files.py __main__ runs update_monthly: downloads any missing
-    monthly files, loads them to the raw table, and merges into the master.
-    Its internal guard makes re-runs no-ops once the month is merged."""
+    monthly files and loads them into the raw table. Its internal guard makes
+    re-runs no-ops once the previous month is loaded. The master is derived
+    in dbt (int_broker_dealer_master), not merged here."""
     _run(["python", "merge_files.py"], cwd=BROKER_DEALER_DIR)
 
 
@@ -316,10 +317,13 @@ def gleif_monthly() -> None:
 
 @flow(name="broker-dealer-monthly", log_prints=True)
 def broker_dealer_monthly() -> None:
-    """Daily-in-window: short-circuits (inside update_monthly) once the
-    previous month's broker-dealer file is merged into the master table."""
-    update_broker_dealer_master()
+    """Daily-in-window: the raw load short-circuits (inside update_monthly)
+    once the previous month's file is in the raw table; the master is then
+    rebuilt in dbt (cheap — replay over all raw snapshots)."""
+    ingest_broker_dealer_raw()
     dbt_source_freshness("source:broker_dealer")
+    dbt_run("tag:broker_dealer")
+    dbt_test("tag:broker_dealer")
 
 
 if __name__ == "__main__":

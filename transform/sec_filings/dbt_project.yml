@@ -41,6 +41,8 @@ models:
         +tags: ["form_d"]
       gleif:
         +tags: ["gleif"]
+      broker_dealer:
+        +tags: ["broker_dealer"]
     intermediate:
       +materialized: view
       +schema: intermediate
@@ -48,6 +50,8 @@ models:
         +tags: ["era"]
       form_d:
         +tags: ["form_d"]
+      broker_dealer:
+        +tags: ["broker_dealer"]
     marts:
       +materialized: table
       +schema: marts
