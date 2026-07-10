@@ -159,9 +159,15 @@ sources:
   - name: gleif
     database: "{{ target.project }}"
     schema: "{{ var('gleif_raw_dataset') }}"
-    # GLEIF LEI golden copy (ingestion/gleif/). Manual / on-demand load —
-    # LEI data changes slowly and matching only needs a recent snapshot, so
-    # deliberately NO freshness block. Add one if this ever gets a schedule.
+    # GLEIF LEI golden copy (ingestion/gleif/), refreshed monthly by the
+    # gleif-monthly flow (cron window 2nd-8th, before era-monthly mints new
+    # registry rows). Full replace each load; load_ts is stamped by the
+    # ingest script (dlt's pandas/arrow path adds no _dlt_load_id).
+    config:
+      loaded_at_field: "load_ts"
+      freshness:
+        warn_after: {count: 40, period: day}
+        error_after: {count: 55, period: day}
     tables:
       - name: lei_records
         description: "One row per LEI: legal name, addresses (ISO-2 countries), category, status, registration dates."

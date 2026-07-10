@@ -13,6 +13,10 @@ Schedules (UTC):
                                                  (in-flow guard: no-op when target quarter loaded)
   * broker-dealer-monthly  0 9 5-31 * *        daily 5th-end of every month at 09:00
                                                  (in-flow guard: no-op when month merged)
+  * gleif-monthly      0 5 2-8 * *             daily 2nd-8th of every month at 05:00
+                                                 (in-flow guard: no-op when month loaded;
+                                                  runs before era-monthly so the registry
+                                                  mints against a fresh LEI map)
 
 Stop with Ctrl+C. Process must stay alive for the cron schedules to fire.
 """
@@ -25,6 +29,7 @@ from flows import (
     form_d_daily,
     form_d_quarterly,
     broker_dealer_monthly,
+    gleif_monthly,
 )
 
 
@@ -59,6 +64,14 @@ def main() -> None:
             description="Broker-dealer monthly file -> raw -> master merge. "
                         "Fires daily after the 5th; in-flow guard "
                         "short-circuits once the month is merged.",
+        ),
+        gleif_monthly.to_deployment(
+            name="gleif-monthly",
+            cron="0 5 2-8 * *",
+            description="GLEIF LEI golden copy refresh + LEI match map rebuild. "
+                        "Fires daily 2nd-8th, before era-monthly, so the "
+                        "provider registry mints against a fresh map; in-flow "
+                        "guard short-circuits once the month is loaded.",
         ),
     ]
     serve(*deployments)

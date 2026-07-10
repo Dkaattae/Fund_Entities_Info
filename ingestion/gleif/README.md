@@ -27,11 +27,17 @@ replaces both tables in full.
 
 ## Cadence
 
-Manual / on-demand — no schedule. LEI records change slowly and the matching
-layer only needs a reasonably current snapshot. Re-run before re-tuning
-fund-admin matching. If this ever gets a schedule, add a freshness block to
-`transform/sec_filings/models/staging/sources.yml` (the `gleif` source is
-declared there without one, deliberately).
+Monthly, via the `gleif-monthly` flow (`orchestration/flows.py gleif`,
+GH Actions `gleif-monthly.yml`, cron daily 2nd–8th 05:00 UTC with an in-flow
+guard that no-ops once the month is loaded). Decided 2026-07-10; monthly over
+quarterly so a refresh always lands just before `era-monthly` (window opens
+the 5th) mints new provider-registry rows against the LEI match map. A
+refresh never churns existing `sp_` ids — the registry reads the map only at
+mint time. The flow reruns `tag:gleif` (both staging models +
+`int_fund_admin_lei_map`) after each load, and freshness thresholds live in
+`transform/sec_filings/models/staging/sources.yml` (warn 40d / error 55d).
+Manual run: `python orchestration/flows.py gleif`, or this script directly
+for an ad-hoc load outside the monthly window.
 
 ## Level 2 (parent relationships)
 

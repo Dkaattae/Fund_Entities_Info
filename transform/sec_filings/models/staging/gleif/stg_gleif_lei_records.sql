@@ -1,3 +1,5 @@
+{{ config(tags=['gleif']) }}
+
 -- One row per LEI with the slim attribute set the matching layer needs.
 -- Countries are ISO-2 (join through seed country_iso_map to compare with
 -- ERA filing country names).

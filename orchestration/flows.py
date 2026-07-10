@@ -5,6 +5,8 @@ Flows:
   - era_monthly           SEC ERA monthly archive     (daily-in-window, idempotent)
   - form_d_daily          Form D EDGAR daily index    (daily)
   - form_d_quarterly      Form D bulk + dedupe        (daily-in-window, idempotent)
+  - broker_dealer_monthly broker-dealer master merge  (daily-in-window, idempotent)
+  - gleif_monthly         GLEIF LEI golden copy       (daily-in-window, idempotent)
 
 The "monthly" / "quarterly" flows are scheduled daily during the SEC release
 window (see serve.py crons) and short-circuit when the target period is
@@ -31,6 +33,7 @@ REPO_ROOT         = Path(__file__).resolve().parent.parent
 ADV_INGEST_DIR    = REPO_ROOT / "ingestion" / "adv-form"
 FORM_D_INGEST_DIR = REPO_ROOT / "ingestion" / "form-d"
 BROKER_DEALER_DIR = REPO_ROOT / "ingestion" / "broker-dealer"
+GLEIF_INGEST_DIR  = REPO_ROOT / "ingestion" / "gleif"
 TRANSFORM_DIR     = REPO_ROOT / "transform" / "sec_filings"
 
 
@@ -80,6 +83,26 @@ def is_era_month_loaded(year: int, month: int) -> bool:
     """
     n = next(client.query(q).result()).n
     return n > 0
+
+
+@task
+def is_gleif_loaded_this_month() -> bool:
+    """The golden copy is a full replace with no period column; the stamped
+    load_ts column (gleif_ingestion._stamped) is the cadence signal. Loads
+    predating the schedule (2026-07-08) lack the column — treated as not
+    loaded so the first scheduled run migrates the schema."""
+    from google.api_core.exceptions import BadRequest
+
+    client, project = _bq_client()
+    q = f"SELECT MAX(load_ts) AS last_load FROM `{project}.gleif.lei_records`"
+    try:
+        last_load = next(client.query(q).result()).last_load
+    except BadRequest:
+        return False
+    if last_load is None:
+        return False
+    today = date.today()
+    return (last_load.year, last_load.month) == (today.year, today.month)
 
 
 @task
@@ -139,6 +162,13 @@ def backfill_form_d_quarter(year: int, quarter: int) -> None:
 @task(retries=0)
 def cleanup_form_d_daily_overlap() -> None:
     _run(["python", "cleanup_daily.py", "--execute"], cwd=FORM_D_INGEST_DIR)
+
+
+@task(retries=1, retry_delay_seconds=600)
+def ingest_gleif() -> None:
+    """Download the latest GLEIF golden copy (~470 MB zip) and replace the
+    gleif.lei_records / gleif.lei_names tables."""
+    _run(["python", "gleif_ingestion.py"], cwd=GLEIF_INGEST_DIR)
 
 
 @task(retries=1, retry_delay_seconds=600)
@@ -265,6 +295,25 @@ def form_d_quarterly() -> None:
     dbt_test("tag:form_d")
 
 
+@flow(name="gleif-monthly", log_prints=True)
+def gleif_monthly() -> None:
+    """Daily-in-window: short-circuits once this calendar month's golden copy
+    is loaded. Scheduled BEFORE era-monthly's window opens (2nd-8th vs 5th+)
+    so the registry mints new providers against a fresh LEI map. A refresh
+    never churns existing sp_ ids — the registry only reads the map at mint
+    time."""
+    log = get_run_logger()
+    if is_gleif_loaded_this_month():
+        log.info("Already loaded this month — skipping ingest.")
+        dbt_source_freshness("source:gleif")
+        return
+
+    ingest_gleif()
+    dbt_source_freshness("source:gleif")
+    dbt_run("tag:gleif")
+    dbt_test("tag:gleif")
+
+
 @flow(name="broker-dealer-monthly", log_prints=True)
 def broker_dealer_monthly() -> None:
     """Daily-in-window: short-circuits (inside update_monthly) once the
@@ -282,6 +331,7 @@ if __name__ == "__main__":
         "form_d_daily":     form_d_daily,
         "form_d_quarterly": form_d_quarterly,
         "broker_dealer":    broker_dealer_monthly,
+        "gleif":            gleif_monthly,
     }
     arg = sys.argv[1] if len(sys.argv) > 1 else "state"
     fn = routes.get(arg)

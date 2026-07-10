@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['gleif']) }}
 
 -- All name variants per LEI (legal + other + transliterated) with the two
 -- normalization keys used for fund-admin matching, precomputed here once per

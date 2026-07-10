@@ -142,15 +142,26 @@ def iter_lei_names(zip_path: Path) -> Iterator[pd.DataFrame]:
             yield long_df
 
 
+def _stamped(chunks: Iterator[pd.DataFrame], load_ts: pd.Timestamp) -> Iterator[pd.DataFrame]:
+    """Stamp every chunk with the load time. dlt's pandas/arrow path does not
+    add _dlt_load_id, and the golden copy has no period column, so load_ts is
+    the freshness / already-loaded signal for the monthly schedule
+    (orchestration/flows.py gleif_monthly + sources.yml freshness)."""
+    for chunk in chunks:
+        chunk["load_ts"] = load_ts
+        yield chunk
+
+
 def load(zip_path: Path) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="gleif_pipeline",
         destination="bigquery",
         dataset_name=DATASET,
     )
+    load_ts = pd.Timestamp.now(tz="UTC")
     print("Loading lei_records ...")
     info = pipeline.run(
-        iter_lei_records(zip_path),
+        _stamped(iter_lei_records(zip_path), load_ts),
         table_name="lei_records",
         write_disposition="replace",
         credentials=gcp_credentials,
@@ -158,7 +169,7 @@ def load(zip_path: Path) -> None:
     print(info)
     print("Loading lei_names ...")
     info = pipeline.run(
-        iter_lei_names(zip_path),
+        _stamped(iter_lei_names(zip_path), load_ts),
         table_name="lei_names",
         write_disposition="replace",
         credentials=gcp_credentials,
