@@ -94,6 +94,20 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    custodian LEI validation (~30% of reported LEIs were junk; expect the
    same class of typos/wrong-numbers here). Not scheduled for a specific
    date; PRIME_BROKER / MARKETER can proceed independently of it.
+   **PRIME_BROKER approach decided 2026-07-10 — validate the reported SEC
+   file number against our own BD master; no new data source needed.**
+   `stg_era_primary_brokers.sec_number` ('8-34354') joins
+   `broker_dealer.broker_dealer_master.film_number`, which IS the SEC
+   broker-dealer file number zero-padded ('8-1447' → '00801447': prefix
+   LPAD to 3 + serial LPAD to 5 — naive digit-stripping breaks on short
+   serials). Measured 2026-07-10: 407 distinct PB tuples → 131 report a
+   sec_number, 108 validate against the master (~82%; rest = withdrawn
+   firms/typos → NAME fallback). CRD adds nothing: zero tuples report a
+   CRD without also reporting a sec_number (the BD table has no CRD
+   anywhere — the `crd` column is empty; FINRA enrichment below would add
+   it later). 276 name-only tuples fall back to NAME fingerprint like the
+   other types. This makes the BD master a consumed identity registry —
+   resolving the "broker-dealer use-or-park decision" (backlog) toward USE.
 5. Use case 7 feasibility spike, then mart + page.
 6. Layer 5 cohort models (v2 starts here).
 
@@ -485,7 +499,31 @@ Architecture-level review after the code-error sweep. Ordered by value.
   `service_provider_clients`. Write down the question only a graph answers
   (e.g. multi-hop shared-provider paths between advisers); if there isn't
   one, drop Neo4j from the plan instead of keeping it as ambient scope.
-- [ ] **Broker-dealer use-or-park decision (added 2026-07-08).** BD ingests
+- [x] **Broker-dealer use-or-park decision (added 2026-07-08).** ~~BD ingests
   monthly but feeds no mart or dashboard page. Trigger: when use cases 6–7
   ship, either connect BD to a concrete use case or pause
-  `broker-dealer-monthly.yml` (data stays in BQ; resuming is cheap).
+  `broker-dealer-monthly.yml` (data stays in BQ; resuming is cheap).~~
+  *Resolved 2026-07-10: USE.* The PRIME_BROKER registry wiring (Next Steps
+  item 4) validates reported SEC file numbers against
+  `broker_dealer_master.film_number`, so the monthly BD ingest stays.
+- [ ] **BD data enrichment via the FINRA Query API (added 2026-07-10,
+  future).** The BD table has no CRD number anywhere; FINRA's
+  "Broker-Dealer Firm List" dataset is the official machine-readable
+  registry (all FINRA-registered BDs, queryable by CRD or in full) — the
+  sanctioned alternative to scraping BrokerCheck (prohibited) or the PCAOB
+  self-reported client CRDs (unreliable). Would add a CRD ↔ name/file-number
+  crosswalk to `broker_dealer_master`. Access details:
+  - Signup: create an **individual account** at https://developer.finra.org
+    → API Console → provision a **Public** API credential (free tier;
+    the paid "Firm credential" is only for member firms' own private
+    registration records — not needed here).
+  - Auth: OAuth2 client-credentials against the FINRA Identity Platform
+    using the credential, then Bearer token on every call.
+  - Base URL: `https://api.finra.org`; dataset group `registration`,
+    name `brokerDealerFirmList` —
+    data: `https://api.finra.org/data/group/registration/name/brokerDealerFirmList`,
+    field list: `https://api.finra.org/metadata/group/registration/name/brokerDealerFirmList`.
+  - Limits: 100 records/request default, 500 max (paginate with
+    limit/offset); 1,200 sync requests/min per IP — a full pull of ~3.4k
+    firms is a few dozen requests. Ingest as a small dlt REST source.
+  - Docs: https://developer.finra.org/docs#query_api-registration-broker_dealer_firm_list_
