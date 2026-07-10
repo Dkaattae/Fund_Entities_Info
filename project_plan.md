@@ -137,7 +137,101 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    spike confirmed feasibility (see the backlog item for details), then
    `stg_era_funds` + `fund_audit_compliance` mart + page
    `11_Late_Audit_Reports.py`.
-6. Layer 5 cohort models (v2 starts here).
+6. PCAOB registered-firms ingestion → AUDITOR wiring (see the dedicated
+   "PCAOB Ingestion Plan" section below; last v1 wiring item).
+7. Layer 5 cohort models (v2 starts here).
+
+---
+
+# PCAOB Ingestion Plan (AUDITOR wiring — planned 2026-07-10)
+
+**Goal:** validate reported auditor PCAOB numbers in `stg_era_auditors`
+against the actual PCAOB registry — the custodian-LEI / prime-broker-BD
+pattern — then add AUDITOR to the registered view's sp_ swap. Completes
+provider-identity wiring for all 5 types (the last open v1 item).
+
+## Source options (decide by measuring coverage, cheapest-official first)
+
+1. **AuditorSearch / Form AP dataset (preferred start).** Official bulk CSV
+   download, updated daily (pcaobus.org/resources/auditorsearch). Carries
+   Firm ID (= the PCAOB number advisers report) + firm name + country.
+   Caveat: it only covers firms that filed Form AP (public-company/issuer
+   audits) — private-fund-only auditors never appear, so it is likely a
+   SUBSET of the registry. Zero scraping risk, so start here and measure.
+2. **Firm inspection reports datasets.** Official CSV/XML/JSON downloads
+   (pcaobus.org/oversight/inspections/firm-inspection-reports). Inspected
+   firms only — not the registry, but gives per-firm inspection evidence
+   that can cross-check the self-reported `pcaob_inspected` flag on
+   filings (Auditor Watch enrichment).
+3. **Registered-firms directory** (pcaobus.org/oversight/registration/
+   registered-firms) — the COMPLETE list, rendered by a JS app; the
+   underlying JSON endpoint is not yet identified (repo notes reference
+   `pcaobus.org/api/firm/{id}/filings`, so an `/api/firm` surface exists).
+   Discovery step: inspect the page's network calls for the list endpoint
+   or an export. Check ToS before automating.
+4. **RASR** (rasr.pcaobus.org) — ASP.NET per-firm public summary pages
+   keyed by an opaque FirmID hash; enumerating via its search page is
+   classic scraping. Last resort only.
+
+**Decision gate:** load (1), then measure — what % of distinct reported
+`pcaob_number`s in our ERA auditors match? (Expect junk like the other
+registries: ~30% of reported LEIs, ~18-20% of reported BD numbers were
+invalid.) If real auditors are missing because they don't audit issuers,
+do the endpoint discovery in (3) for the full directory; otherwise (1)+(2)
+suffice and we skip scraping entirely.
+
+## Ingestion (`ingestion/pcaob/`)
+
+- `pcaob_ingestion.py`, dlt → BigQuery dataset `pcaob`
+  (same stack as gleif/): download the official CSV(s), load
+  `registered_firms` (firm_id, firm_name, country, …) and optionally
+  `firm_inspections`, `write_disposition=replace`.
+- Stamp a `load_ts` column at load time (GLEIF lesson: dlt's pandas/arrow
+  path adds no `_dlt_load_id`; guard + freshness key off `load_ts`).
+- House conventions: UA `HedgeFundNet katechen150621@gmail.com`, downloads
+  land in a gitignored `files/`, README with tables/grain/cadence.
+
+## Transform (dbt)
+
+- `sources.yml`: new `pcaob` source (`pcaob_raw_dataset` var) with
+  freshness on `load_ts` (warn 40d / error 55d, monthly cadence).
+- `stg_pcaob_registered_firms` (staging/pcaob, tag `pcaob`; grain tests:
+  unique firm_id, not_null).
+- `int_service_provider_links` auditors CTE: trust a reported
+  `pcaob_number` only when it exists in the registry; invalid ones fall
+  back to the NAME fingerprint. BEFORE building: check reported-number
+  format consistency (the LPAD-truncation lesson — bound the accepted
+  format) and confirm validated `PCAOB:` canonical keys stay identical so
+  no existing sp_ ids churn.
+- `int_service_provider_links_registered`: add AUDITOR to the sp_ swap.
+- Optional follow-up: `adviser_auditor_status` gains registry-verified
+  columns (e.g. `pcaob_number_verified`, inspection status from source 2)
+  so Auditor Watch stops relying purely on self-reported flags.
+
+## Orchestration
+
+- `pcaob_monthly` flow in `orchestration/flows.py` (route `pcaob`),
+  mirroring gleif-monthly: `is_pcaob_loaded_this_month` guard on
+  max(load_ts) → ingest → `dbt source freshness --select source:pcaob` →
+  `dbt run/test --select tag:pcaob`.
+- Cron daily-in-window **2nd–8th at 04:00 UTC** — before gleif-monthly
+  (05:00) and era-monthly (06:00, window opens the 5th), so the registry
+  mints new AUDITOR rows against a fresh PCAOB list the same way it does
+  against a fresh LEI map.
+- `.github/workflows/pcaob-monthly.yml` + mirror deployment in `serve.py`.
+
+## Verification checklist (before calling it done)
+
+- Coverage + junk-rate numbers recorded here (distinct reported
+  pcaob_numbers validated / total).
+- Zero churn of already-validated `PCAOB:` sp_ ids; registry delta =
+  junk-fallback clusters only (append-only).
+- 19/19 links tests still pass; AppTest pages 2, 8, 9 (Auditor Watch
+  consumes auditor identity).
+- Flow runs end-to-end locally (`python orchestration/flows.py pcaob`),
+  guard no-ops on rerun.
+
+---
 
 ---
 
