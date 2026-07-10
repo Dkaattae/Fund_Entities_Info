@@ -3,15 +3,15 @@
 -- int_service_provider_links with canonical_id routed through the persistent
 -- provider_registry. Downstream marts consume THIS model, not the raw links.
 --
--- FUND_ADMIN + CUSTODIAN + PRIME_BROKER: canonical_id becomes the stable
--- registry provider_id (sp_…) — a normalizer tweak, seed edit, or LEI
+-- FUND_ADMIN + CUSTODIAN + PRIME_BROKER + MARKETER: canonical_id becomes the
+-- stable registry provider_id (sp_…) — a normalizer tweak, seed edit, or LEI
 -- correction re-mints the content-derived key, but the registry keeps the
 -- sp_ id, so history and future graph keys survive. (Custodian LEIs are
--- validated against GLEIF since 2026-07-08; prime-broker SEC file numbers
--- against the BD master since 2026-07-10.)
--- AUDITOR / MARKETER keep their canonical_id unchanged for now (AUDITOR
--- waits on a PCAOB registry source; both NAME-fingerprint tails migrate
--- when city/country leaves identity — see project_plan Problem 1 item 3).
+-- validated against GLEIF since 2026-07-08; prime-broker and marketer '8-'
+-- SEC file numbers against the BD master since 2026-07-10; marketer '801-'
+-- adviser numbers are unvalidated until RIA data is ingested.)
+-- AUDITOR keeps its canonical_id unchanged for now — waits on a PCAOB
+-- registry source (see project_plan Problem 1 item 3 / Next Steps 4).
 --
 -- coalesce fallback: a brand-new cluster that appears before the registry's
 -- next append still gets its content key instead of NULL, and converts to
@@ -34,7 +34,7 @@ select
     l.country,
     l.filing_month,
     case
-        when l.provider_type in ('FUND_ADMIN', 'CUSTODIAN', 'PRIME_BROKER')
+        when l.provider_type in ('FUND_ADMIN', 'CUSTODIAN', 'PRIME_BROKER', 'MARKETER')
             then coalesce(r.provider_id, l.canonical_id)
         else l.canonical_id
     end as canonical_id,

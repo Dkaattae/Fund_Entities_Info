@@ -75,27 +75,37 @@ primary_brokers as (
         s.filing_month
     from {{ ref('stg_era_primary_brokers') }} s
     left join bd_file_numbers bd
-        on regexp_contains(s.sec_number, r'^[0-9]+-[0-9]+$')
-       and concat(
-               lpad(split(s.sec_number, '-')[offset(0)], 3, '0'),
-               lpad(split(s.sec_number, '-')[offset(1)], 5, '0')
-           ) = bd.film_number
+        on regexp_contains(s.sec_number, {{ bd_file_number_format() }})
+       and {{ bd_file_key('s.sec_number') }} = bd.film_number
 ),
 
 marketers as (
     select
         'MARKETER' as provider_type,
-        filing_id,
-        reference_id,
-        subreference_id,
-        raw_name,
-        sec_number,
-        crd_number,
+        s.filing_id,
+        s.reference_id,
+        s.subreference_id,
+        s.raw_name,
+        -- Marketers report either a broker-dealer file number ('8-…') or an
+        -- adviser one ('801-…'). 8- numbers are only trusted when they exist
+        -- in the BD master, like prime brokers; malformed or unknown ones
+        -- fall back to the NAME fingerprint. 801- numbers pass through
+        -- unvalidated — no RIA registry is loaded yet to check them against
+        -- (validate when the planned RIA ingestion lands).
+        case
+            when regexp_contains(s.sec_number, r'^8-')
+                then case when bd.film_number is not null then s.sec_number end
+            else s.sec_number
+        end as sec_number,
+        s.crd_number,
         cast(null as int64) as pcaob_number,
         cast(null as string) as lei,
-        city, state, country,
-        filing_month
-    from {{ ref('stg_era_marketers') }}
+        s.city, s.state, s.country,
+        s.filing_month
+    from {{ ref('stg_era_marketers') }} s
+    left join bd_file_numbers bd
+        on regexp_contains(s.sec_number, {{ bd_file_number_format() }})
+       and {{ bd_file_key('s.sec_number') }} = bd.film_number
 ),
 
 custodians as (

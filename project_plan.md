@@ -117,9 +117,20 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    6,232 PB mentions carry sp_ ids (108 providers via validated SEC number,
    279 via NAME fallback), 19/19 tests pass, pages 2 & 8 render, and the
    crosswalk works — Goldman/Merrill/UBS each hold ONE sp_ id across their
-   PRIME_BROKER/CUSTODIAN/MARKETER roles. Remaining wiring: MARKETER (could
-   reuse the same BD-master validation for its sec_numbers), AUDITOR
-   (blocked on PCAOB source).
+   PRIME_BROKER/CUSTODIAN/MARKETER roles.
+   **MARKETER: ✅ wired 2026-07-10, same pattern.** Marketers report either
+   a broker-dealer number ('8-…', 330 tuples: 298 provider ids validate vs
+   the BD master) or an adviser number ('801-…', 69 tuples: pass through
+   UNVALIDATED — no RIA registry loaded yet; validate them when the planned
+   RIA ingestion lands). 775 name-only clusters fall back to NAME
+   fingerprint. Found + fixed along the way: the file-number normalization
+   LPAD-TRUNCATES over-long serials, so typo'd numbers ('8-692444', 6-digit
+   serial) falsely validated as other real firms ('8-69244') — now guarded
+   by a bounded format regex in the shared `bd_file_key` macro; one
+   previously false PB validation was demoted (108 → 107 validated).
+   Verified: all 113,126 marketer mentions carry sp_ ids (1,142 providers),
+   19/19 tests, pages 2 & 8 render, registry appended 41 rows.
+   Remaining wiring: AUDITOR only (blocked on PCAOB source).
 5. Use case 7 feasibility spike, then mart + page.
 6. Layer 5 cohort models (v2 starts here).
 
