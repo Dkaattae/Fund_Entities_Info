@@ -12,12 +12,21 @@ dashboard is the product surface.
 **v1 — definition of done:** all 7 dashboard use cases live on Streamlit
 Cloud, on top of stable provider IDs, with scheduled ingestion green and
 the provider registry backed up.
+
+**v1 closeout checklist (2026-07-10 evening):**
+
+| DoD item | Status |
+|---|---|
+| Stable provider IDs (all 5 types through the registry) | ✅ complete — AUDITOR wired 2026-07-10 via PCAOB ingestion, the last type |
+| Provider registry backed up | ✅ monthly snapshots since 2026-07-08 |
+| All 7 use-case pages built | ✅ pages 1–11 in repo, AppTest-verified |
+| Use cases live on Streamlit Cloud | ⏳ owner check — app is auth-walled; confirm pages 10 (Missing ERA Filings) and 11 (Late Audit Reports) appear after the latest push; reboot the app if not |
+| Scheduled ingestion green | ⏳ was RED 2026-07-09/10: unpinned workflow deps let pip backtrack dbt to 1.7 (can't parse the `arguments:` test-config key). Pin `dbt-bigquery>=1.11,<1.12` landed 2026-07-10 13:48 (commit 406f048), AFTER the day's failed runs. Verified locally same evening: a fresh venv resolve of `.github/workflows/requirements.txt` yields dbt-core 1.11.12 / protobuf 6.33.6 and `dbt source freshness` passes with it. Confirm tomorrow's scheduled runs (~08:00–12:00 UTC) are green — the token can't dispatch workflows manually. |
+
 *(Done since written: registry backup; GLEIF refresh cadence + schedule;
 use case 6 page; use case 7 mart + page; PRIME_BROKER and MARKETER wiring;
 BD master migrated to dbt; AUDITOR wiring via the new PCAOB ingestion —
-all 2026-07-10. Provider-identity wiring is complete for all 5 types; all
-7 use cases have live pages; v1 completes once Streamlit Cloud picks up
-pages 10-11.)*
+all 2026-07-10.)*
 
 **v2 — after v1:** layer 5 cohort models, service-provider bundle
 recommendation, ontology-driven chatbot. Neo4j only if a graph-only
@@ -566,7 +575,12 @@ Revisit when Prefect moves to a real deployment:
 - [ ] **Pin requirements**: `dashboard/requirements.txt` and the ingestion
   requirements files are unpinned — non-reproducible deploys (Streamlit
   Cloud can break on a transitive upgrade). Lock with `pip-compile` or
-  `pip freeze`.
+  `pip freeze`. *This has now bitten twice in CI:* fastapi 0.137 broke
+  prefect (pinned 2026-06-16), and on 2026-07-09/10 every scheduled run
+  went red because pip backtracked dbt to 1.7 over a protobuf-7-era grpcio
+  conflict (dbt 1.7 can't parse the `arguments:` key in generic test
+  configs) — reactive pin `dbt-bigquery>=1.11,<1.12` added 2026-07-10.
+  A full lock of `.github/workflows/requirements.txt` is the durable fix.
 - [ ] **Hardcoded `sec_filings_marts` dataset name** in all 8 dashboard pages
   (18 call sites). Centralize in `dashboard/bq.py` via env var.
 - [ ] **Docs drift**: README repo-layout omits `ingestion/attorneys/`;
