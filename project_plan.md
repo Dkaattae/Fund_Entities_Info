@@ -11,10 +11,12 @@ dashboard is the product surface.
 
 **v1 — definition of done:** all 7 dashboard use cases live on Streamlit
 Cloud, on top of stable provider IDs, with scheduled ingestion green and
-the provider registry backed up. Still open for v1: use case 7 (spike
-first), registry wiring for AUDITOR / PRIME_BROKER / MARKETER.
-*(Done since written: registry backup, GLEIF refresh cadence + schedule
-2026-07-10, use case 6 page 2026-07-10.)*
+the provider registry backed up. Still open for v1: registry wiring for
+AUDITOR (blocked on a PCAOB source — the one remaining wiring item).
+*(Done since written: registry backup; GLEIF refresh cadence + schedule;
+use case 6 page; use case 7 mart + page; PRIME_BROKER and MARKETER wiring;
+BD master migrated to dbt — all 2026-07-10. All 7 use cases now have live
+pages; v1 completes once Streamlit Cloud picks up pages 10-11.)*
 
 **v2 — after v1:** layer 5 cohort models, service-provider bundle
 recommendation, ontology-driven chatbot. Neo4j only if a graph-only
@@ -74,7 +76,7 @@ Verified plan against code:
 | Dashboard use cases 1–4 | ✅ Live (pages 1–5) |
 | Use case 5 (non-PCAOB auditors) | ✅ Done 2026-07-08 (`adviser_auditor_status` + Auditor Watch page; no external registry needed) |
 | Use case 6 (missing ERA filings) | ✅ Done 2026-07-10 (own page `10_Missing_ERA_Filings.py`; was buried in a page-2 tab) |
-| Use case 7 (late audit reports) | ❌ Not built |
+| Use case 7 (late audit reports) | ✅ Done 2026-07-10 (`fund_audit_compliance` + Late Audit Reports page; spike found the fields exist) |
 | Recommendation / chatbot | ❌ Not started |
 
 Docs drift: README repo-layout table omits `ingestion/attorneys/`.
@@ -131,7 +133,10 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
    Verified: all 113,126 marketer mentions carry sp_ ids (1,142 providers),
    19/19 tests, pages 2 & 8 render, registry appended 41 rows.
    Remaining wiring: AUDITOR only (blocked on PCAOB source).
-5. Use case 7 feasibility spike, then mart + page.
+5. ~~Use case 7 feasibility spike, then mart + page~~ ✅ done 2026-07-10 —
+   spike confirmed feasibility (see the backlog item for details), then
+   `stg_era_funds` + `fund_audit_compliance` mart + page
+   `11_Late_Audit_Reports.py`.
 6. Layer 5 cohort models (v2 starts here).
 
 ---
@@ -512,12 +517,23 @@ Architecture-level review after the code-error sweep. Ordered by value.
   naming (TOKIOBIT, NYDAO, fake "RENAISSANCE TECHNOLOGIES…"), one signatory
   literally "JJIMMI1". The `same_auditor_same_aum_advisers` column
   generalizes that signal; the page quarantines clusters ≥ 5 peers.
-- [ ] Late-audit-report detection (use case 7). **Feasibility spike first
-  (added 2026-07-08):** "late" = the custody-rule 120-day audited-financials
-  distribution deadline (180 for fund-of-funds). Confirm the ERA extract
-  actually carries fiscal-year-end and audit-distribution/delivery fields
-  (ADV Schedule D 7.B.23) before committing to a mart — if they're absent,
-  the use case needs a different definition or data source.
+- [x] ~~Late-audit-report detection (use case 7).~~ *(done 2026-07-10)*
+  Spike outcome: the ERA extract DOES carry the needed fields —
+  `era_adv.funds` (Schedule D 7.B.1 Q23) has `annual_audit`,
+  `fs_distributed`, and `unqualified_opinion` whose value
+  **'Report Not Yet Received'** is an explicit audit-outstanding flag; the
+  follow-ups are gated on annual_audit='Y' so audited rows always carry
+  real answers (no amendment-sparsity problem). No audit-delivery DATE
+  exists, so "late" = state-based: latest filing still shows the report
+  outstanding/undistributed past adviser FYE + 120 days (180 for FoF; a
+  benchmark — ERAs aren't literally subject to the custody rule's audit
+  provision, and advisers must promptly amend 7.B.23.h when statements go
+  out). Built: `stg_era_funds` (new source table declared),
+  `fund_audit_compliance` mart (one row per audited fund on the latest
+  filing; terminated advisers excluded; qualified opinions a separate
+  status), page `11_Late_Audit_Reports.py` with an auditors-ranked-by-
+  overdue-reports table. Live numbers: 3,409 overdue funds / 1,379
+  advisers / $508B fund GAV; 498 funds carry qualified opinions.
 - [ ] Layer 5 cohort models (AUM size / age / type).
 - [ ] **Neo4j go/no-go decision (added 2026-07-08).** No longer blocked —
   stable `sp_` ids exist — but don't build it by default: the chatbot plan

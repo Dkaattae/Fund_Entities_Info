@@ -155,3 +155,17 @@ tab on page 2.
 - Detail table (click a row for adviser detail); overdue count by fiscal
   year end
 - Sidebar filters: fiscal year end, state, min days overdue
+
+### 11. Late Audit Reports
+Audited private funds whose adviser's latest filing still reports the audit
+outstanding ('Report Not Yet Received') or the audited statements not
+distributed, past a custody-rule-style deadline (FYE + 120 days, 180 for
+funds of funds). Funds with qualified (non-clean) opinions are a separate
+category. Backed by `fund_audit_compliance` (use case 7).
+
+- KPIs: overdue funds, advisers affected, overdue fund GAV, median days
+  overdue
+- Fund table (click a row for audit/auditor/adviser detail + IAPD link);
+  auditors ranked by overdue-report count
+- Sidebar filters: audit status, overdue-only, hide stale filers (18+
+  months without a filing), fund type, min days overdue

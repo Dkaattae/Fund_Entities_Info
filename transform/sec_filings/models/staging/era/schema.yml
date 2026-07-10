@@ -210,3 +210,22 @@ models:
         description: "Country where the marketer is located."
       - name: filing_month
         description: "YYYYMM period key from the source."
+
+  - name: stg_era_funds
+    description: >
+      Schedule D 7.B.1 private funds, one row per (filing_id, fund_id).
+      Carries the audit block (annual_audit gate -> fs_distributed,
+      audit_opinion incl. 'Report Not Yet Received', gaap) used by
+      fund_audit_compliance (use case 7).
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['filing_id', 'fund_id']
+    columns:
+      - name: filing_id
+        tests:
+          - not_null
+      - name: fund_id
+        description: "SEC private fund ID (805-…); always populated in the raw data."
+        tests:
+          - not_null

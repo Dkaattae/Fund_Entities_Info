@@ -23,6 +23,33 @@ models:
               arguments:
                 values: ['no_pcaob_auditor', 'mixed', 'registered_not_inspected', 'pcaob_inspected']
 
+  - name: fund_audit_compliance
+    description: >
+      One row per audited private fund on its adviser's latest filing, with
+      the Schedule D 7.B.1 Q23 audit state (report received? distributed?
+      opinion?) and a custody-rule-style distribution deadline
+      (adviser FYE + 120 days, 180 for fund of funds). is_overdue flags
+      funds whose report is still outstanding/undistributed past that
+      deadline with no amendment filed. Use case 7 / Late Audit Reports page.
+      Terminated advisers (final report, nothing after) are excluded.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'fund_id']
+    columns:
+      - name: entity_key
+        tests:
+          - not_null
+      - name: fund_id
+        tests:
+          - not_null
+      - name: audit_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['report_not_received', 'not_distributed', 'qualified_opinion', 'clean']
+
   - name: era_latest_filing
     description: >
       One row per ERA entity (CRD, fallback SEC adviser #) — most recent filing of any type.

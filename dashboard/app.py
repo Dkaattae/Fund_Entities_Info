@@ -11,6 +11,7 @@ pages = [
     st.Page("pages/8_Service_Provider_Directory.py", title="Service Provider Directory"),
     st.Page("pages/9_Auditor_Watch.py", title="Auditor Watch"),
     st.Page("pages/10_Missing_ERA_Filings.py", title="Missing ERA Filings"),
+    st.Page("pages/11_Late_Audit_Reports.py", title="Late Audit Reports"),
 ]
 
 pg = st.navigation(pages)

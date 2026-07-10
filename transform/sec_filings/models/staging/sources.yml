@@ -122,6 +122,11 @@ sources:
       - name: primary_brokers
       - name: marketers
       - name: custodians
+      - name: funds
+        description: >
+          Schedule D 7.B.1 private funds, one row per (filing_id, fund_id).
+          Includes the audit block (annual_audit, fs_distributed,
+          unqualified_opinion, gaap) consumed by use case 7.
       - name: form_d_num
 
   - name: form_d_filings

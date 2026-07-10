@@ -28,7 +28,7 @@ transform/sec_filings/   ← dbt (staging → intermediate → marts)
 BigQuery (mart tables)
       │
       ▼
-dashboard/          ← Streamlit app (10 pages)
+dashboard/          ← Streamlit app (11 pages)
 ```
 
 ## Scheduling / Orchestration
@@ -48,7 +48,8 @@ Scheduled jobs (GitHub Actions — the current source of truth):
 | `form-d-daily.yml` | `0 7 * * *` | Form D daily index crawl + XML parse + dbt |
 | `era-monthly.yml` | `0 6 5-31 * *` | ERA monthly ZIP (fires daily in window; in-flow guard skips once the month is loaded) |
 | `form-d-quarterly.yml` | `0 8 4-31 1,4,7,10 *` | Form D bulk quarter + crawler cleanup + dbt (fires daily in window; guard skips once loaded) |
-| `broker-dealer-monthly.yml` | `0 9 5-31 * *` | Broker-dealer monthly file → raw table → master merge (guard skips once merged) |
+| `broker-dealer-monthly.yml` | `0 9 5-31 * *` | Broker-dealer monthly file → raw table → dbt master rebuild (guard skips the load once the month is in raw) |
+| `gleif-monthly.yml` | `0 5 2-8 * *` | GLEIF LEI golden copy refresh + LEI match map rebuild (fires daily in window, before era-monthly; guard skips once loaded) |
 
 **Migration plan:** when Prefect gets a real deployment, move these crons to
 Prefect (`orchestration/serve.py` already mirrors them) and delete the
@@ -66,7 +67,7 @@ never both be live.
 | `ingestion/broker-dealer/` | Broker-dealer FOCUS report pipeline |
 | `ingestion/CIK/` | SEC CIK lookup reference |
 | `ingestion/attorneys/` | Law-firm scrape (CSV only, not yet in BigQuery) |
-| `ingestion/gleif/` | GLEIF LEI golden copy loader (manual, for provider identity) |
+| `ingestion/gleif/` | GLEIF LEI golden copy loader (monthly schedule, for provider identity) |
 | `transform/sec_filings/` | dbt project — staging / intermediate / marts |
 | `orchestration/` | Prefect flows and deployment config |
 | `dashboard/` | Streamlit multi-page app backed by BigQuery |
@@ -103,7 +104,7 @@ Domain model and identity-resolution rules are documented in [`DomainModel.yml`]
 
 ## Dashboard Pages
 
-The Streamlit app has 10 pages:
+The Streamlit app has 11 pages:
 
 | Page | Description |
 |---|---|
@@ -117,6 +118,7 @@ The Streamlit app has 10 pages:
 | 8. Service Provider Directory | Canonical service provider reference with identity-resolution metadata |
 | 9. Auditor Watch | ERA advisers using non-PCAOB-registered or uninspected auditors, with same-auditor/same-AUM anomaly clusters |
 | 10. Missing ERA Filings | ERA advisers past their annual amendment due date with no current-year filing (use case 6) |
+| 11. Late Audit Reports | Audited funds whose latest filing still shows the audit report outstanding or undistributed past FYE + 120/180 days (use case 7) |
 
 See [`dashboard/README.md`](dashboard/README.md) for setup and run instructions.
 
