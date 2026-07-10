@@ -49,15 +49,12 @@ Form ADV. Backed by `newly_emerging_funds` (latest 500 filings).
 ### 2. Service Provider Changes
 SEC ERA advisers who changed auditor, custodian, fund administrator, prime
 broker, or marketer between their two most recent filings. Backed by
-`service_provider_changes`, `era_adviser_transitions`,
-`adviser_filing_compliance`, `era_filing_history`.
+`service_provider_changes`, `era_adviser_transitions`.
 
 Tabs:
 - **New Advisers** — adviser transition events (new SEC ERA, ERA → RIA,
   ERA withdrawn, new state ERA/RIA) with a transitions-by-quarter matrix
   and a filterable event list
-- **Compliance Concerns** — advisers past their annual amendment due date
-  with no filing on record (count, average days overdue, total AUM)
 - **Auditors / Custodians / Fund Admins / Prime Brokers / Marketers** — per
   provider type: who added, dropped, or swapped. Click a row for the full
   current-vs-prior provider detail and the adviser's funds.
@@ -146,3 +143,15 @@ Backed by `adviser_auditor_status`.
   template clusters, top non-PCAOB auditor firms
 - Sidebar filters: auditor status, AUM bucket, hide template clusters
   (default on)
+
+### 10. Missing ERA Filings
+SEC ERA advisers past their annual amendment due date (fiscal year end +
+90 days) with no filing for the current reporting year — presumed active and
+delinquent; wind-downs via final report are excluded (see Fund Closures).
+Backed by `adviser_filing_compliance`. Formerly the "Compliance Concerns"
+tab on page 2.
+
+- KPIs: advisers overdue, avg/max days overdue, total AUM overdue
+- Detail table (click a row for adviser detail); overdue count by fiscal
+  year end
+- Sidebar filters: fiscal year end, state, min days overdue

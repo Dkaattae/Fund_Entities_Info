@@ -11,9 +11,10 @@ dashboard is the product surface.
 
 **v1 — definition of done:** all 7 dashboard use cases live on Streamlit
 Cloud, on top of stable provider IDs, with scheduled ingestion green and
-the provider registry backed up. Still open for v1: use case 6 page,
-use case 7 (spike first), registry wiring for AUDITOR / PRIME_BROKER /
-MARKETER, registry backup, GLEIF refresh cadence.
+the provider registry backed up. Still open for v1: use case 7 (spike
+first), registry wiring for AUDITOR / PRIME_BROKER / MARKETER.
+*(Done since written: registry backup, GLEIF refresh cadence + schedule
+2026-07-10, use case 6 page 2026-07-10.)*
 
 **v2 — after v1:** layer 5 cohort models, service-provider bundle
 recommendation, ontology-driven chatbot. Neo4j only if a graph-only
@@ -72,7 +73,7 @@ Verified plan against code:
 | Neo4j knowledge base | ❌ Not started (blocked on stable provider IDs — see below) |
 | Dashboard use cases 1–4 | ✅ Live (pages 1–5) |
 | Use case 5 (non-PCAOB auditors) | ✅ Done 2026-07-08 (`adviser_auditor_status` + Auditor Watch page; no external registry needed) |
-| Use case 6 (missing ERA filings) | ⚠️ `adviser_filing_compliance` mart exists but no dashboard page |
+| Use case 6 (missing ERA filings) | ✅ Done 2026-07-10 (own page `10_Missing_ERA_Filings.py`; was buried in a page-2 tab) |
 | Use case 7 (late audit reports) | ❌ Not built |
 | Recommendation / chatbot | ❌ Not started |
 
@@ -81,9 +82,18 @@ Docs drift: README repo-layout table omits `ingestion/attorneys/`.
 ## Next Steps (agreed 2026-07-08)
 
 1. ~~**Back up `provider_registry`**~~ ✅ done 2026-07-08 (see P1).
-2. **GLEIF refresh cadence** — decide + document (see Problem 3).
-3. Use case 6 dashboard page (`adviser_filing_compliance` mart already exists).
+2. ~~**GLEIF refresh cadence**~~ ✅ done 2026-07-10 — monthly, as a scheduled
+   flow like every other source (see Problem 3).
+3. ~~Use case 6 dashboard page~~ ✅ done 2026-07-10 — pulled the "Compliance
+   Concerns" tab out of page 2 into its own page `10_Missing_ERA_Filings.py`
+   (it was undiscoverable nested in a tab).
 4. Registry wiring for AUDITOR / PRIME_BROKER / MARKETER (Problem 1, item 3).
+   **AUDITOR needs a PCAOB data source first** (owner decision 2026-07-10):
+   ingest the PCAOB registered-firms registry and validate reported PCAOB
+   numbers against it before trusting them as identity — same pattern as
+   custodian LEI validation (~30% of reported LEIs were junk; expect the
+   same class of typos/wrong-numbers here). Not scheduled for a specific
+   date; PRIME_BROKER / MARKETER can proceed independently of it.
 5. Use case 7 feasibility spike, then mart + page.
 6. Layer 5 cohort models (v2 starts here).
 
@@ -139,6 +149,11 @@ content-derived ID: `NAME:<md5(normalized name)>` for fund admins,
    PRIME_BROKER / MARKETER, and dropping city/country from the custodian
    NAME fallback — careful with generic bank names ("FIRST NATIONAL BANK")
    that are genuinely different firms per country.
+   *Note 2026-07-10:* AUDITOR wiring is blocked on ingesting a PCAOB
+   registered-firms data source — reported PCAOB numbers must be validated
+   against the actual registry before being trusted as identity, exactly
+   like custodian LEIs were validated against GLEIF (where ~30% of reported
+   values turned out to be junk). See Next Steps item 4.
 
 ## Problem 2 — Fund admin alias seed is a flat, error-prone CSV
 
@@ -204,12 +219,18 @@ through to self-hash IDs with raw-name display.
    MAPPING table — canonical_id rewiring waits for the provider registry
    (sequencing #2), which should consume match_confidence='high' rows.
    Parent relationships need the Level 2 (rr) file — not ingested yet.
-   - [ ] **Refresh cadence (added 2026-07-08).** The golden copy was a
-     one-time manual load; LEIs are issued and lapse continuously, so the
-     match map drifts stale. Decide + document a cadence — quarterly, or at
-     minimum before each registry-wiring milestone. Re-running is safe: the
-     registry only consumes the map at mint time, so a refresh never churns
-     existing `sp_` ids.
+   - [x] **Refresh cadence (added 2026-07-08).** *(done 2026-07-10)* Monthly,
+     scheduled like every other source: `gleif_monthly` flow in
+     `orchestration/flows.py` + `gleif-monthly.yml` GH Actions workflow
+     (cron daily 2nd–8th 05:00 UTC, in-flow guard no-ops once the month is
+     loaded — deliberately before era-monthly's window opens on the 5th so
+     the registry mints against a fresh LEI map). The ingest script now
+     stamps a `load_ts` column (dlt's pandas/arrow path adds no
+     _dlt_load_id); guard + source freshness (warn 40d / error 55d in
+     sources.yml) key off it. Flow reruns `tag:gleif` (both stg models,
+     `int_fund_admin_lei_map`, `provider_registry`) after each load.
+     Re-running is safe: the registry only consumes the map at mint time,
+     so a refresh never churns existing `sp_` ids.
 2. Run `scripts/discover_unknown_fund_admins.py` with a country breakdown
    (group unmatched raw_names by filing country) to prioritize which non-US
    admins to seed first.
@@ -435,7 +456,11 @@ Architecture-level review after the code-error sweep. Ordered by value.
 
 ## Product gaps already in the plan (repeated here so the backlog is one list)
 
-- [ ] Surface `adviser_filing_compliance` as a dashboard page (use case 6).
+- [x] ~~Surface `adviser_filing_compliance` as a dashboard page (use case 6).~~
+  *(done 2026-07-10)* Pulled the "Compliance Concerns" tab out of page 2 —
+  where it had proven undiscoverable — into its own page
+  `10_Missing_ERA_Filings.py` (KPIs, FYE/state/min-days filters, row detail,
+  overdue-by-FYE rollup). Page 2 keeps New Advisers + provider-type tabs.
 - [x] ~~PCAOB registry enrichment →~~ non-PCAOB-auditor page (use case 5).
   *(done 2026-07-08)* No external PCAOB registry needed — Form ADV
   self-reports `pcaob_registered` / `pcaob_inspected` per auditor (already

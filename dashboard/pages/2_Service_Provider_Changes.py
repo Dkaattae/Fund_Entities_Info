@@ -98,20 +98,6 @@ def load_filter_options() -> tuple[list[str], list[str]]:
 
 
 @st.cache_data(ttl=3600)
-def load_reporting_years() -> tuple[int, int]:
-    _, project = bq_client()
-    row = run_query(f"""
-        SELECT
-            MAX(annual_amendment_fiscal_year)     AS current_year,
-            MAX(annual_amendment_fiscal_year) - 1 AS prior_year
-        FROM `{project}.sec_filings_marts.era_filing_history`
-        WHERE is_annual_amendment_era
-          AND annual_amendment_fiscal_year IS NOT NULL
-    """).iloc[0]
-    return int(row["current_year"]), int(row["prior_year"])
-
-
-@st.cache_data(ttl=3600)
 def load_transitions() -> pd.DataFrame:
     _, project = bq_client()
     return run_query(f"""
@@ -126,20 +112,6 @@ def load_transitions() -> pd.DataFrame:
             iapd_url
         FROM `{project}.sec_filings_marts.era_adviser_transitions`
         ORDER BY date_submitted DESC NULLS LAST
-    """)
-
-
-@st.cache_data(ttl=3600)
-def load_compliance() -> pd.DataFrame:
-    _, project = bq_client()
-    return run_query(f"""
-        SELECT
-            entity_key, legal_name, business_name,
-            assets_under_management, fiscal_year_end,
-            main_city, main_state,
-            current_reporting_year, due_date, last_filing_date, days_overdue
-        FROM `{project}.sec_filings_marts.adviser_filing_compliance`
-        ORDER BY days_overdue DESC
     """)
 
 
@@ -166,7 +138,6 @@ def load_provider_changes(provider_type: str) -> pd.DataFrame:
 # Tab layout
 # ---------------------------------------------------------------------------
 
-current_year, prior_year = load_reporting_years()
 fye_options, change_options = load_filter_options()
 
 # ---------------------------------------------------------------------------
@@ -188,7 +159,7 @@ with st.sidebar:
         default=fye_options,
     )
 
-tab_labels = ["New Advisers", "Compliance Concerns"] + list(PROVIDER_TYPES.keys())
+tab_labels = ["New Advisers"] + list(PROVIDER_TYPES.keys())
 tabs = st.tabs(tab_labels)
 
 # ── New Advisers ──────────────────────────────────────────────────────────────
@@ -277,36 +248,9 @@ with tabs[0]:
             if row.get("iapd_url"):
                 st.link_button("View on IAPD", row["iapd_url"])
 
-# ── Compliance Concerns ───────────────────────────────────────────────────────
-with tabs[1]:
-    st.subheader(f"Compliance Concerns — {current_year} Filing Overdue")
-    st.caption(
-        "Advisers past their annual amendment due date (fiscal year end + 90 days) "
-        f"with no {current_year} filing on record."
-    )
-    df = load_compliance()
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Advisers overdue", len(df))
-    c2.metric("Avg days overdue",
-              f"{df['days_overdue'].mean():.0f}" if len(df) else "—")
-    c3.metric("Total AUM overdue",
-              fmt_aum(df["assets_under_management"].sum()) if len(df) else "—")
-
-    display = pd.DataFrame({
-        "Business Name": df["business_name"].fillna(df["legal_name"]),
-        "AUM":           df["assets_under_management"].apply(fmt_aum),
-        "FYE":           df["fiscal_year_end"],
-        "Due Date":      df["due_date"].astype(str),
-        "Days Overdue":  df["days_overdue"],
-        "Last Filing":   df["last_filing_date"].astype(str),
-        "City":          df["main_city"].fillna(""),
-        "State":         df["main_state"].fillna(""),
-    })
-    st.dataframe(display, use_container_width=True, hide_index=True)
-
 # ── Provider-type tabs ────────────────────────────────────────────────────────
-for tab, (label, ptype) in zip(tabs[2:], PROVIDER_TYPES.items()):
+# (Compliance Concerns moved to its own page: 10_Missing_ERA_Filings.py)
+for tab, (label, ptype) in zip(tabs[1:], PROVIDER_TYPES.items()):
     with tab:
         st.subheader(f"{label} Changes — Latest vs Prior Filing")
         df = load_provider_changes(ptype)
