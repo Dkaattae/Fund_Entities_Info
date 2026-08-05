@@ -1,8 +1,11 @@
-pandas
-google-cloud-bigquery
-db-dtypes
-requests
-google-cloud-bigquery-storage
-pyarrow
-dlt[bigquery]
-prefect
+# Pinned to match the CI lockfile (.github/workflows/requirements.txt) so a
+# local dev env is identical to what the scheduled workflows run. Keep these
+# in sync when bumping the lockfile.
+pandas==3.0.5
+google-cloud-bigquery==3.42.3
+db-dtypes==1.7.1
+requests==2.34.2
+google-cloud-bigquery-storage==2.39.0
+pyarrow==25.0.0
+dlt[bigquery]==1.29.1
+prefect==3.7.4
