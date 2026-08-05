@@ -102,18 +102,23 @@ def adv_filing_source(url: str, year: int, month: int):
     response.raise_for_status()
     zip_file = zipfile.ZipFile(io.BytesIO(response.content))
 
-    # 3. Loop through your tables and yield them as resources
-    for csv_name, cfg in CSV_TABLES.items():
-        
-        # We define a generator function for EACH csv file
-        def get_rows(name=csv_name, table_cfg=cfg):
+    # 3. Define the generator via a factory that binds the per-iteration csv
+    #    name as a *call argument*, not a default parameter. dlt introspects a
+    #    resource function's parameters as config-spec fields; a dict/mutable
+    #    default (the old `table_cfg=cfg`) trips Python 3.11's dataclass
+    #    "mutable default <mappingproxy> ... use default_factory" check and
+    #    fails the whole flow. The factory also fixes the classic loop-variable
+    #    late-binding trap. `zip_file`, `year`, `month` are stable across the
+    #    loop, so plain closure capture is fine for them.
+    def make_get_rows(name):
+        def get_rows():
             with zip_file.open(name) as f:
                 try:
                     df = pd.read_csv(f, low_memory=False, on_bad_lines='skip', encoding='utf-8')
                 except UnicodeDecodeError:
                     with zip_file.open(name) as f_retry:
                         df = pd.read_csv(f_retry, low_memory=False, on_bad_lines='skip', encoding='latin-1')
-                
+
                 if df.empty:
                     return
 
@@ -124,7 +129,7 @@ def adv_filing_source(url: str, year: int, month: int):
                 # Numbers to Nullable Integers
                 df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce').astype('Int64')
                 df[numeric_cols] = df[numeric_cols].fillna(-1)
-        
+
                 # Strings & Symbols
                 df[object_cols] = df[object_cols].fillna("None").astype(str)
                 for col in object_cols:
@@ -136,10 +141,13 @@ def adv_filing_source(url: str, year: int, month: int):
 
                 # Convert to records
                 yield df.to_dict(orient='records')
+        return get_rows
 
-        # 4. Yield the resource with the "Smart Hints" (the shield)
+    # 4. Loop through your tables and yield them as resources with the
+    #    "Smart Hints" (the shield)
+    for csv_name, cfg in CSV_TABLES.items():
         yield dlt.resource(
-            get_rows, # This calls the generator we just defined
+            make_get_rows(csv_name),
             name=cfg["table"],
             primary_key=cfg["primary_key"],
             write_disposition="merge",

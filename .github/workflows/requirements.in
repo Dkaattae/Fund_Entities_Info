@@ -1,0 +1,30 @@
+# Top-level dependencies for the ingestion/transform CI workflows.
+#
+# This is the SOURCE file. The pinned lockfile actually installed by CI is
+# requirements.txt, generated from this file with:
+#
+#   uv pip compile .github/workflows/requirements.in \
+#       -o .github/workflows/requirements.txt \
+#       --python-version 3.11 --python-platform linux
+#
+# Everything is fully pinned (incl. transitive deps) in requirements.txt so a
+# newly-published transitive release can't silently break the scheduled runs
+# again. Edit this file, then re-compile.
+pandas
+requests
+python-dateutil
+python-dotenv
+google-cloud-bigquery
+google-cloud-bigquery-storage
+db-dtypes
+pyarrow
+# Pin dlt: 1.30+ untested against these flows; keep the CI-validated version.
+dlt[bigquery]==1.29.1
+prefect==3.7.4
+# Pin fastapi: 0.137.x breaks prefect 3.7.4's ephemeral server
+# (PrefectRouter has no attribute 'routes'). 0.136.3 is the last good release.
+fastapi==0.136.3
+# Pin dbt: unpinned, pip resolves protobuf-7-era grpcio by downgrading dbt to
+# 1.7, which can't parse the `arguments:` key in generic test configs.
+dbt-bigquery>=1.11,<1.12
+xmltodict
