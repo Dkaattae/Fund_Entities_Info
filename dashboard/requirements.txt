@@ -1,7 +1,13 @@
-streamlit>=1.35
-google-cloud-bigquery
-google-cloud-bigquery-storage
-db-dtypes
-pandas
-pyarrow
-plotly>=5.20
+# Pinned for reproducible Streamlit Cloud deploys. Data libs match the CI
+# lockfile (.github/workflows/requirements.txt); streamlit/plotly are pinned to
+# the latest that resolves cleanly with pandas 3.0 (streamlit 1.61 supports it).
+# NOTE: resolver-verified, not runtime-tested against the live app — confirm on
+# the next Streamlit redeploy. pyarrow is 24.x here (what the streamlit stack
+# resolves to) vs 25.x in the pipeline lockfile.
+streamlit==1.61.0
+google-cloud-bigquery==3.42.3
+google-cloud-bigquery-storage==2.39.0
+db-dtypes==1.7.1
+pandas==3.0.5
+pyarrow==24.0.0
+plotly==6.9.0

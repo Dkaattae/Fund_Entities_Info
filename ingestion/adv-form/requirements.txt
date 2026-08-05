@@ -1,6 +1,9 @@
-pandas
-requests
-dlt[bigquery]
-python-dateutil
-python-dotenv
-google-cloud-bigquery
+# Pinned to match the CI lockfile (.github/workflows/requirements.txt) so a
+# local dev env is identical to what the scheduled workflows run. Keep these
+# in sync when bumping the lockfile.
+pandas==3.0.5
+requests==2.34.2
+dlt[bigquery]==1.29.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+google-cloud-bigquery==3.42.3
