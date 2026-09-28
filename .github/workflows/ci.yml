@@ -5,14 +5,40 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Weekly run so CI keeps checking against the live marts even without
+  # commits, and so the keepalive job below fires.
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
 
 jobs:
+  # GitHub disables scheduled workflows after 60 days without repo activity,
+  # and scheduled runs don't count. Re-enabling each workflow via the API
+  # resets that timer, so the ingestion flows (and this one) stay on.
+  keepalive:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Re-enable all workflows
+        run: |
+          gh api "repos/${{ github.repository }}/actions/workflows" --paginate \
+            --jq '.workflows[] | select(.state == "active" or .state == "disabled_inactivity") | .id' |
+          while read -r id; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$id/enable"
+          done
+
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -31,9 +57,9 @@ jobs:
     env:
       BIGQUERY_SERVICE_ACCOUNT_JSON: ${{ secrets.BIGQUERY_SERVICE_ACCOUNT_JSON }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
