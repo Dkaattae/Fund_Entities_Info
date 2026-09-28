@@ -55,7 +55,7 @@ promoted because v2 stacks more weight on the same pipelines:
    Unpinned deps broke all CI twice (fastapi 2026-06-16, dbt→1.7 downgrade
    2026-07-09/10). Do dashboard + ingestion requirements at the same time —
    Streamlit Cloud deploys are equally unpinned.
-2. **pytest + dbt-compile CI on push** (backlog "Unit tests + CI"): the two
+2. ✅ *(done 2026-09-28)* **pytest + dbt-compile CI on push** (backlog "Unit tests + CI"): the two
    silent July bugs (withdrawn_month overwrite, EXTRACT-on-STRING) were in
    small pure functions. Targets: `merge_month()`, date/month helpers,
    `parse_xml_schema` (fixture exists), plus `dbt compile` as a parse gate.
@@ -763,7 +763,7 @@ Revisit when Prefect moves to a real deployment:
     (filing_id, reference_id) as a provider key.
   Next increment (optional): grain tests for the remaining staging models and
   `int_form_d_*`.
-- [ ] **Pin requirements**: `dashboard/requirements.txt` and the ingestion
+- [x] **Pin requirements** *(done 2026-08-05: CI lockfile via uv pip compile; dashboard + ingestion pinned to match)*: `dashboard/requirements.txt` and the ingestion
   requirements files are unpinned — non-reproducible deploys (Streamlit
   Cloud can break on a transitive upgrade). Lock with `pip-compile` or
   `pip freeze`. *This has now bitten twice in CI:* fastapi 0.137 broke
@@ -835,7 +835,17 @@ Architecture-level review after the code-error sweep. Ordered by value.
   (bq client factory, HEADERS constant, date helpers) means credential
   handling and UA change in one place. The planned ERA/RIA flag refactor is
   the natural first tenant of this package.
-- [ ] **Unit tests + CI for the pure logic.** There are zero Python tests;
+- [x] **Unit tests + CI for the pure logic.** *(done 2026-09-28)* `tests/`
+  (pytest, 64 tests, no BQ/network): period helpers in `flows.py`,
+  adv-form `util.py`, broker-dealer month helpers + `iter_months`, Form D
+  `generate_quarters`, the Form D XML parser (fixture moved to
+  `tests/fixtures/form_d_primary_doc.xml`), the state-adviser XML parser,
+  and the fund-admin fuzzy matcher. dbt unit tests (`unit_tests.yml`) pin
+  `int_broker_dealer_master` transitions, `adviser_filing_compliance` and
+  `fund_audit_compliance`; data tests added for 6 previously untested
+  dashboard marts. `.github/workflows/ci.yml` runs pytest + `dbt compile` +
+  dbt unit tests on every push/PR. `merge_month()` no longer exists (BD
+  master moved to dbt — covered by the dbt unit test instead). Original note: There are zero Python tests;
   both of this week's silent bugs (withdrawn_month overwrite, ERA
   EXTRACT-on-STRING) were in small pure functions. Targets:
   `merge_month()`, the date/month helpers, `parse_xml_schema` parsers

@@ -1,0 +1,89 @@
+version: 2
+
+# dbt unit tests for the compliance marts (use cases 6 and 7). Fixture dates
+# are in 2020-2021 so every due date is safely in the past relative to
+# current_date(); days_overdue (which moves daily) is deliberately not
+# asserted. Run with:
+#   python run_dbt.py test --select test_type:unit
+
+unit_tests:
+  - name: filing_compliance_flags_only_unfiled_active_advisers
+    description: >
+      Current reporting year = max fiscal_year of annual amendments (2020).
+      Advisers who filed an annual/other amendment for 2020, or terminated via
+      a final report, are excluded; one who filed again after a final report
+      is active again and flagged. Due date = FYE month-end + 90 days, with an
+      unknown/missing FYE defaulting to December.
+    model: adviser_filing_compliance
+    given:
+      - input: ref('stg_era_base')
+        rows:
+          - {firm_crd: 'LATE',    filing_id: 1, date_submitted: '2020-03-01', fiscal_year_end: 'DECEMBER'}
+          - {firm_crd: 'FILED',   filing_id: 2, date_submitted: '2021-03-01', fiscal_year_end: 'DECEMBER'}
+          - {firm_crd: 'OTHER',   filing_id: 3, date_submitted: '2021-02-01', fiscal_year_end: 'DECEMBER'}
+          - {firm_crd: 'FINAL',   filing_id: 4, date_submitted: '2020-06-01', fiscal_year_end: 'DECEMBER'}
+          - {firm_crd: 'REVIVED', filing_id: 5, date_submitted: '2020-09-01', fiscal_year_end: 'DECEMBER'}
+          - {firm_crd: 'MARCH',   filing_id: 6, date_submitted: '2020-01-15', fiscal_year_end: 'march'}
+          # No CRD: entity_key falls back to the SEC adviser number; bad FYE -> December
+          - {firm_crd: null, sec_adviser_number: '802-1', filing_id: 7, date_submitted: '2020-02-01', fiscal_year_end: 'None'}
+      - input: ref('era_filing_history')
+        rows:
+          - {entity_key: 'LATE',    date_submitted: '2020-03-01', fiscal_year: 2019, is_annual_amendment_era: true,  is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'FILED',   date_submitted: '2021-03-01', fiscal_year: 2020, is_annual_amendment_era: true,  is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'OTHER',   date_submitted: '2021-02-01', fiscal_year: 2020, is_annual_amendment_era: false, is_other_amendment_era: true,  is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'FINAL',   date_submitted: '2020-06-01', fiscal_year: 2019, is_annual_amendment_era: false, is_other_amendment_era: false, is_final_sec_era: true,  is_final_state_era: false}
+          - {entity_key: 'REVIVED', date_submitted: '2020-05-01', fiscal_year: 2019, is_annual_amendment_era: false, is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: true}
+          - {entity_key: 'REVIVED', date_submitted: '2020-09-01', fiscal_year: 2019, is_annual_amendment_era: true,  is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'MARCH',   date_submitted: '2020-01-15', fiscal_year: 2019, is_annual_amendment_era: true,  is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: '802-1',   date_submitted: '2020-02-01', fiscal_year: 2019, is_annual_amendment_era: true,  is_other_amendment_era: false, is_final_sec_era: false, is_final_state_era: false}
+    expect:
+      rows:
+        - {entity_key: 'LATE',    current_reporting_year: 2020, due_date: '2021-03-31'}
+        - {entity_key: 'REVIVED', current_reporting_year: 2020, due_date: '2021-03-31'}
+        - {entity_key: 'MARCH',   current_reporting_year: 2020, due_date: '2020-06-29'}
+        - {entity_key: '802-1',   current_reporting_year: 2020, due_date: '2021-03-31'}
+
+  - name: fund_audit_status_and_distribution_deadline
+    description: >
+      Maps the Schedule D 7.B.1 Q23 answers to audit_status, derives the
+      reporting FYE (most recent FYE month-end on or before the filing date),
+      and sets the deadline at FYE + 120 days (+180 for fund of funds).
+      Unaudited funds and advisers that terminated via a final report are
+      excluded; one non-PCAOB auditor flags the fund.
+    model: fund_audit_compliance
+    given:
+      - input: ref('era_latest_filing')
+        rows:
+          # December FYE filed May 2021 -> reports on FYE 2020-12-31
+          - {entity_key: 'DEC', filing_id: 1, date_submitted: '2021-05-15', fiscal_year_end: 'DECEMBER'}
+          # March FYE filed May 2021 -> reports on FYE 2021-03-31
+          - {entity_key: 'MAR', filing_id: 2, date_submitted: '2021-05-15', fiscal_year_end: 'MARCH'}
+          - {entity_key: 'GONE', filing_id: 3, date_submitted: '2021-05-15', fiscal_year_end: 'DECEMBER'}
+      - input: ref('stg_era_funds')
+        rows:
+          - {filing_id: 1, fund_id: 'not_received', is_audited: true,  is_fund_of_funds: false, fs_distributed: null,  audit_opinion: 'Report Not Yet Received'}
+          - {filing_id: 1, fund_id: 'qualified',    is_audited: true,  is_fund_of_funds: false, fs_distributed: true,  audit_opinion: 'No'}
+          - {filing_id: 1, fund_id: 'undistributed', is_audited: true, is_fund_of_funds: false, fs_distributed: false, audit_opinion: 'Yes'}
+          - {filing_id: 1, fund_id: 'clean',        is_audited: true,  is_fund_of_funds: false, fs_distributed: true,  audit_opinion: 'Yes'}
+          - {filing_id: 1, fund_id: 'fof',          is_audited: true,  is_fund_of_funds: true,  fs_distributed: null,  audit_opinion: 'Report Not Yet Received'}
+          - {filing_id: 1, fund_id: 'unaudited',    is_audited: false, is_fund_of_funds: false, fs_distributed: null,  audit_opinion: null}
+          - {filing_id: 2, fund_id: 'march_fye',    is_audited: true,  is_fund_of_funds: false, fs_distributed: true,  audit_opinion: 'Yes'}
+          - {filing_id: 3, fund_id: 'terminated',   is_audited: true,  is_fund_of_funds: false, fs_distributed: null,  audit_opinion: 'Report Not Yet Received'}
+      - input: ref('era_filing_history')
+        rows:
+          - {entity_key: 'DEC',  date_submitted: '2021-05-15', is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'MAR',  date_submitted: '2021-05-15', is_final_sec_era: false, is_final_state_era: false}
+          - {entity_key: 'GONE', date_submitted: '2021-05-15', is_final_sec_era: true,  is_final_state_era: false}
+      - input: ref('stg_era_auditors')
+        rows:
+          - {filing_id: 1, raw_name: 'Big Four LLP', is_pcaob_registered: true}
+          - {filing_id: 1, raw_name: 'Tiny CPA',     is_pcaob_registered: false}
+          - {filing_id: 2, raw_name: 'Big Four LLP', is_pcaob_registered: true}
+    expect:
+      rows:
+        - {fund_id: 'not_received',  audit_status: 'report_not_received', reporting_fye_date: '2020-12-31', distribution_deadline: '2021-04-30', is_overdue: true,  has_non_pcaob_auditor: true}
+        - {fund_id: 'qualified',     audit_status: 'qualified_opinion',   reporting_fye_date: '2020-12-31', distribution_deadline: '2021-04-30', is_overdue: false, has_non_pcaob_auditor: true}
+        - {fund_id: 'undistributed', audit_status: 'not_distributed',     reporting_fye_date: '2020-12-31', distribution_deadline: '2021-04-30', is_overdue: true,  has_non_pcaob_auditor: true}
+        - {fund_id: 'clean',         audit_status: 'clean',               reporting_fye_date: '2020-12-31', distribution_deadline: '2021-04-30', is_overdue: false, has_non_pcaob_auditor: true}
+        - {fund_id: 'fof',           audit_status: 'report_not_received', reporting_fye_date: '2020-12-31', distribution_deadline: '2021-06-29', is_overdue: true,  has_non_pcaob_auditor: true}
+        - {fund_id: 'march_fye',     audit_status: 'clean',               reporting_fye_date: '2021-03-31', distribution_deadline: '2021-07-29', is_overdue: false, has_non_pcaob_auditor: false}

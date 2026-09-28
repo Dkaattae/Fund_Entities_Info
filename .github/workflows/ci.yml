@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Same lockfile the scheduled flows run on, plus pytest.
+      - name: Install dependencies
+        run: pip install -r .github/workflows/requirements.txt pytest==9.1.1
+
+      # No credentials on purpose: the unit tests must never touch BigQuery
+      # or the network (tests/conftest.py sets a dummy key).
+      - name: Run pytest
+        run: python -m pytest -v
+
+  dbt:
+    runs-on: ubuntu-latest
+    env:
+      BIGQUERY_SERVICE_ACCOUNT_JSON: ${{ secrets.BIGQUERY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r .github/workflows/requirements.txt
+
+      # Secrets are not passed to pull requests from forks; skip rather than fail.
+      - name: Check for BigQuery credentials
+        id: creds
+        run: |
+          if [ -n "$BIGQUERY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::BIGQUERY_SERVICE_ACCOUNT_JSON not available; skipping dbt checks."
+          fi
+
+      # Compile catches bad refs/Jinja/SQL templating and invalid YAML/test config.
+      - name: dbt compile
+        if: steps.creds.outputs.present == 'true'
+        working-directory: transform/sec_filings
+        run: python run_dbt.py compile
+
+      # Unit tests run model SQL against fixture rows only (read-only, cheap).
+      # Data tests on the live marts already run after every scheduled build.
+      - name: dbt unit tests
+        if: steps.creds.outputs.present == 'true'
+        working-directory: transform/sec_filings
+        run: python run_dbt.py test --select test_type:unit

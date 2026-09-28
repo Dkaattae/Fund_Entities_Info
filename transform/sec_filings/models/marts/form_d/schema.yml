@@ -107,3 +107,17 @@ models:
           - accepted_values:
               arguments:
                 values: ['adviser_also_new', 'adviser_established', 'no_adv_found']
+
+  - name: form_d_nothing_fund_tracker
+    description: >
+      "Nothing funds": pooled funds whose initial Form D (2025+) raised $0
+      with first sale yet to occur and no shared related persons; one row
+      per Form D file number with fundraising velocity since.
+    columns:
+      - name: file_num
+        tests:
+          - unique
+          - not_null
+      - name: initial_filing_date
+        tests:
+          - not_null

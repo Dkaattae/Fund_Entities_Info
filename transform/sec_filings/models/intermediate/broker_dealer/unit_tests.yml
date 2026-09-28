@@ -1,0 +1,47 @@
+version: 2
+
+# dbt unit tests: fixed fixture rows in, exact rows out. They pin the
+# presence-timeline logic that the pandas merge got wrong in July 2026
+# (withdrawn_month re-stamped every month). Run with:
+#   python run_dbt.py test --select test_type:unit
+
+unit_tests:
+  - name: bd_master_status_and_transition_months
+    description: >
+      Four raw months (26_01..26_04). Covers every status, start_month NULL
+      for the initial-load cohort, withdrawn_month surviving a
+      re-registration, and entity attributes taken from the last month the
+      CIK was present.
+    model: int_broker_dealer_master
+    given:
+      - input: ref('stg_broker_dealer_snapshots')
+        rows:
+          # A: present every month -> Active, initial cohort. Renamed in 26_04.
+          - {cik: 'A', file_month: '26_01', month_idx: 1, name: 'Old Name'}
+          - {cik: 'A', file_month: '26_02', month_idx: 2, name: 'Old Name'}
+          - {cik: 'A', file_month: '26_03', month_idx: 3, name: 'Old Name'}
+          - {cik: 'A', file_month: '26_04', month_idx: 4, name: 'New Name'}
+          # B: first appears in the latest month -> New
+          - {cik: 'B', file_month: '26_04', month_idx: 4, name: 'B'}
+          # C: present 1-2, gone since -> Withdrawn in 26_03 (not re-stamped)
+          - {cik: 'C', file_month: '26_01', month_idx: 1, name: 'C'}
+          - {cik: 'C', file_month: '26_02', month_idx: 2, name: 'C'}
+          # D: gap at 2, back at 3-4 -> Active, new streak from 26_03
+          - {cik: 'D', file_month: '26_01', month_idx: 1, name: 'D'}
+          - {cik: 'D', file_month: '26_03', month_idx: 3, name: 'D'}
+          - {cik: 'D', file_month: '26_04', month_idx: 4, name: 'D'}
+          # E: gap at 3, back in the latest month -> Reregistered, keeps 26_03
+          - {cik: 'E', file_month: '26_01', month_idx: 1, name: 'E'}
+          - {cik: 'E', file_month: '26_02', month_idx: 2, name: 'E'}
+          - {cik: 'E', file_month: '26_04', month_idx: 4, name: 'E'}
+          # F: appears mid-history, withdraws in the latest month
+          - {cik: 'F', file_month: '26_02', month_idx: 2, name: 'F'}
+          - {cik: 'F', file_month: '26_03', month_idx: 3, name: 'F'}
+    expect:
+      rows:
+        - {cik: 'A', name: 'New Name', status: 'Active',       start_month: null,    withdrawn_month: null,    last_observed_month: '26_04'}
+        - {cik: 'B', name: 'B',        status: 'New',          start_month: '26_04', withdrawn_month: null,    last_observed_month: '26_04'}
+        - {cik: 'C', name: 'C',        status: 'Withdrawn',    start_month: null,    withdrawn_month: '26_03', last_observed_month: '26_04'}
+        - {cik: 'D', name: 'D',        status: 'Active',       start_month: '26_03', withdrawn_month: '26_02', last_observed_month: '26_04'}
+        - {cik: 'E', name: 'E',        status: 'Reregistered', start_month: '26_04', withdrawn_month: '26_03', last_observed_month: '26_04'}
+        - {cik: 'F', name: 'F',        status: 'Withdrawn',    start_month: '26_02', withdrawn_month: '26_04', last_observed_month: '26_04'}

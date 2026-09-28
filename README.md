@@ -170,6 +170,21 @@ cd transform/sec_filings
 dbt run
 ```
 
+### Run tests
+
+```bash
+# Python unit tests (no BigQuery / network needed)
+pip install -r .github/workflows/requirements.txt pytest
+pytest
+
+# dbt unit tests (fixture rows, needs BIGQUERY_SERVICE_ACCOUNT_JSON)
+cd transform/sec_filings
+python run_dbt.py test --select test_type:unit
+```
+
+Both run on every push / PR via `.github/workflows/ci.yml`. dbt data tests
+on the live marts run after each scheduled build.
+
 ---
 
 ## Planned Features

@@ -323,7 +323,7 @@ def parse_formd(xml_url):
 
 
 if __name__ == "__main__":
-    # file_path = 'raw_data.xml'
+    # file_path = '../../tests/fixtures/form_d_primary_doc.xml'
     # try:
     #     with open(file_path, 'rb') as f:
     #         xml_content = f.read()

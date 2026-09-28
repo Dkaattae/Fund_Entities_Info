@@ -133,3 +133,87 @@ models:
       - name: canonical_id
         tests:
           - not_null
+
+  - name: adviser_filing_compliance
+    description: >
+      One row per ERA adviser past its annual-amendment due date (FYE + 90
+      days) with no filing for the current reporting year. Terminated
+      advisers are excluded. Use case 6 / Missing ERA Filings page.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key']
+    columns:
+      - name: entity_key
+        tests:
+          - not_null
+      - name: due_date
+        tests:
+          - not_null
+
+  - name: service_provider_changes
+    description: >
+      One row per (adviser, provider_type): provider set on the two most
+      recent fiscal-year snapshots and how it changed.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'provider_type']
+    columns:
+      - name: entity_key
+        tests:
+          - not_null
+      - name: change_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['new_adviser', 'no_prior_data', 'swapped', 'added', 'dropped', 'unchanged']
+
+  - name: service_provider_yoy
+    description: Year-over-year adviser count per service provider and report year.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['canonical_id', 'provider_type', 'report_year']
+    columns:
+      - name: canonical_id
+        tests:
+          - not_null
+      - name: report_year
+        tests:
+          - not_null
+
+  - name: era_new_filers
+    description: One row per initial IARD filing (SEC/state, RIA/ERA).
+    columns:
+      - name: filing_id
+        tests:
+          - unique
+          - not_null
+      - name: adviser_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SEC RIA', 'SEC ERA', 'State RIA', 'State ERA']
+
+  - name: era_adviser_transitions
+    description: >
+      One row per adviser lifecycle transition event. An adviser can repeat
+      a transition type (e.g. withdraw, return, withdraw again), so the
+      grain includes the filing.
+    tests:
+      - unique_combination:
+          arguments:
+            combination_of_columns: ['entity_key', 'transition_type', 'filing_id']
+    columns:
+      - name: entity_key
+        tests:
+          - not_null
+      - name: transition_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['new_era', 'era_to_ria', 'new_ria', 'era_withdrawal', 'new_state_era', 'new_state_ria']
