@@ -17,7 +17,12 @@ if not service_account_json_str:
 gcp_credentials = json.loads(service_account_json_str)
 project_id = gcp_credentials.get("project_id")
 
-url_template = 'https://www.sec.gov/files/structureddata/data/form-d-data-sets/{year}q{quarter}_d.zip'
+# SEC moved the data sets to /datastandardsinnovation/ starting with 2026Q2;
+# older quarters are still only served from /structureddata/.
+url_templates = [
+    'https://www.sec.gov/files/datastandardsinnovation/data/form-d-data-sets/{year}q{quarter}_d.zip',
+    'https://www.sec.gov/files/structureddata/data/form-d-data-sets/{year}q{quarter}_d.zip',
+]
 
 headers = {
     'User-Agent': 'HedgeFundNet katechen150621@gmail.com',
@@ -121,6 +126,14 @@ def form_d_source(url: str, year: int, quarter: int):
             max_table_nesting=0
         )
 
+def resolve_url(year, quarter):
+    """Return the first candidate URL the SEC actually serves, else None."""
+    for template in url_templates:
+        url = template.format(year=year, quarter=quarter)
+        if requests.head(url, headers=headers, allow_redirects=True).ok:
+            return url
+    return None
+
 def backfill(start_year, start_quarter, quarter_cnt=None):
     pipeline = dlt.pipeline(
         pipeline_name="form_d_filings_backfill",
@@ -130,7 +143,10 @@ def backfill(start_year, start_quarter, quarter_cnt=None):
 
     for (year, quarter) in generate_quarters(start_year=start_year, 
                 start_quarter=start_quarter, quarter_cnt=quarter_cnt):
-        url = url_template.format(year=year, quarter=quarter)
+        url = resolve_url(year, quarter)
+        if url is None:
+            print(f"Data of {year}-q{quarter} not found at any known SEC path")
+            continue
         print(f"Loading {url}")
         try:
             info = pipeline.run(
