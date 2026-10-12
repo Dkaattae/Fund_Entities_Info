@@ -4,11 +4,15 @@ Cleanup daily crawler tables after historical backfill.
 After running backfill.py for a quarter, run this script to remove
 daily records that are now covered by the historical dataset.
 
-It finds the latest filing_date in the historical form_d_submission table,
-then deletes all daily records with filing_date <= that date.
+It finds which calendar quarters are present in the historical
+form_d_submission table, then deletes daily records whose filing_date falls
+in one of those quarters. Quarters the bulk data set has NOT loaded (e.g. a
+quarter SEC published late or the flow skipped) keep their crawler rows,
+since those are the only copy of that quarter's filings.
 """
 import os
 import json
+from functools import lru_cache
 from google.cloud import bigquery
 
 service_account_json_str = os.getenv("BIGQUERY_SERVICE_ACCOUNT_JSON")
@@ -17,7 +21,12 @@ if not service_account_json_str:
 
 gcp_credentials = json.loads(service_account_json_str)
 project_id = gcp_credentials.get("project_id")
-client = bigquery.Client.from_service_account_info(gcp_credentials)
+
+
+@lru_cache(maxsize=None)
+def get_client():
+    return bigquery.Client.from_service_account_info(gcp_credentials)
+
 
 HISTORICAL_DATASET = "form_d_filings"
 DAILY_DATASET = "formd_filings_crawler"
@@ -36,53 +45,74 @@ DAILY_PARSED_TABLES = [
 ]
 
 
-def get_historical_cutoff_date():
-    """Return the latest filing_date in the historical dataset as a datetime.date.
+def get_loaded_quarters():
+    """Return the sorted quarter-start dates present in the historical dataset.
 
     Historical filing_date is a 'DD-MON-YYYY' string, so it must be parsed
-    before taking MAX (string MAX/comparisons are lexicographic, not
+    before bucketing (string comparisons are lexicographic, not
     chronological).
     """
     query = f"""
-        SELECT MAX(SAFE.PARSE_DATE('%d-%b-%Y', filing_date)) as max_date
+        SELECT DISTINCT DATE_TRUNC(SAFE.PARSE_DATE('%d-%b-%Y', filing_date), QUARTER) AS q
         FROM `{project_id}.{HISTORICAL_DATASET}.form_d_submission`
+        WHERE SAFE.PARSE_DATE('%d-%b-%Y', filing_date) IS NOT NULL
+        ORDER BY q
     """
-    max_date = list(client.query(query).result())[0]["max_date"]
-    print(f"Latest filing_date in historical dataset: {max_date}")
-    return max_date
+    quarters = [row["q"] for row in get_client().query(query).result()]
+    print(f"Quarters loaded in historical dataset: {format_quarters(quarters)}")
+    return quarters
 
 
-def get_daily_stats(cutoff_date):
-    # Daily filing_date is a 'YYYY-MM-DD' string (SEC submissions API format);
-    # parse it so blank/malformed values are kept rather than deleted.
+def format_quarters(quarters):
+    return ", ".join(f"{q.year}Q{(q.month - 1) // 3 + 1}" for q in quarters) or "none"
+
+
+def covered_filter(date_expr, quarters):
+    """SQL predicate: date_expr (a DATE) falls in one of the loaded quarters.
+
+    A NULL date_expr (blank/malformed source value) never matches, so those
+    rows are kept rather than deleted.
+    """
+    if not quarters:
+        return "FALSE"
+    quarter_list = ", ".join(f"DATE '{q.isoformat()}'" for q in quarters)
+    return f"DATE_TRUNC({date_expr}, QUARTER) IN ({quarter_list})"
+
+
+# Daily filing_date is a 'YYYY-MM-DD' string (SEC submissions API format).
+DAILY_FILING_DATE = "SAFE.PARSE_DATE('%Y-%m-%d', filing_date)"
+# The tracking table's 'date' column is the daily index date, an INT64 YYYYMMDD.
+TRACKING_DATE = "SAFE.PARSE_DATE('%Y%m%d', CAST(date AS STRING))"
+
+
+def get_daily_stats(quarters):
+    covered = covered_filter(DAILY_FILING_DATE, quarters)
     query = f"""
         SELECT
             COUNT(*) as total,
-            COUNTIF(SAFE.PARSE_DATE('%Y-%m-%d', filing_date) <= DATE '{cutoff_date}') as to_delete,
-            COUNTIF(SAFE.PARSE_DATE('%Y-%m-%d', filing_date) > DATE '{cutoff_date}') as to_keep
+            COUNTIF({covered}) as to_delete
         FROM `{project_id}.{DAILY_DATASET}.form_d_submission`
     """
-    result = client.query(query).to_dataframe()
-    row = result.iloc[0]
+    row = list(get_client().query(query).result())[0]
     print(f"Daily form_d_submission: {row['total']} total, "
-          f"{row['to_delete']} to delete, {row['to_keep']} to keep")
+          f"{row['to_delete']} to delete, {row['total'] - row['to_delete']} to keep")
     return row['to_delete']
 
 
-def cleanup_parsed_tables(cutoff_date):
-    """Delete rows from daily parsed tables where filing_date <= cutoff."""
+def cleanup_parsed_tables(quarters):
+    """Delete rows from daily parsed tables filed in a loaded quarter."""
     # First get the accession numbers to delete, based on form_d_submission dates
     accessions_subquery = f"""
         SELECT accessionnumber
         FROM `{project_id}.{DAILY_DATASET}.form_d_submission`
-        WHERE SAFE.PARSE_DATE('%Y-%m-%d', filing_date) <= DATE '{cutoff_date}'
+        WHERE {covered_filter(DAILY_FILING_DATE, quarters)}
     """
 
     for table in DAILY_PARSED_TABLES:
         full_table = f"`{project_id}.{DAILY_DATASET}.{table}`"
         # Check if table exists
         try:
-            client.get_table(f"{project_id}.{DAILY_DATASET}.{table}")
+            get_client().get_table(f"{project_id}.{DAILY_DATASET}.{table}")
         except Exception:
             print(f"  Skipping {table} (does not exist)")
             continue
@@ -91,47 +121,45 @@ def cleanup_parsed_tables(cutoff_date):
             DELETE FROM {full_table}
             WHERE accessionnumber IN ({accessions_subquery})
         """
-        result = client.query(query).result()
-        print(f"  Cleaned {table}: deleted rows with filing_date <= {cutoff_date}")
+        get_client().query(query).result()
+        print(f"  Cleaned {table}: deleted rows filed in loaded quarters")
 
 
-def cleanup_tracking_table(cutoff_date):
-    """Delete or reset tracking rows in formd_daily_submissions."""
+def cleanup_tracking_table(quarters):
+    """Delete tracking rows in formd_daily_submissions for loaded quarters."""
     tracking_table = f"`{project_id}.{DAILY_DATASET}.formd_daily_submissions`"
 
-    # The tracking table uses 'date' column (from the daily index), not
-    # filing_date, and it is an INT64 in YYYYMMDD form.
-    # Delete ALL rows where date <= cutoff regardless of status: those
+    # Delete ALL rows in a loaded quarter regardless of status: those
     # filings are covered by the quarterly bulk dataset, so still-PENDING
-    # rows are dead backlog that would otherwise linger forever.
-    cutoff_int = int(cutoff_date.strftime("%Y%m%d"))
+    # rows are dead backlog that would otherwise linger forever. Rows in
+    # unloaded quarters stay so the crawler keeps them.
     query = f"""
         DELETE FROM {tracking_table}
-        WHERE date <= {cutoff_int}
+        WHERE {covered_filter(TRACKING_DATE, quarters)}
     """
-    result = client.query(query).result()
-    print(f"  Cleaned formd_daily_submissions: deleted rows with date <= {cutoff_date}")
+    get_client().query(query).result()
+    print("  Cleaned formd_daily_submissions: deleted rows dated in loaded quarters")
 
 
 def run_cleanup(dry_run=True):
-    cutoff_date = get_historical_cutoff_date()
-    if not cutoff_date:
+    quarters = get_loaded_quarters()
+    if not quarters:
         print("No data in historical dataset. Nothing to clean up.")
         return
 
-    to_delete = get_daily_stats(cutoff_date)
+    to_delete = get_daily_stats(quarters)
 
     if dry_run:
-        print(f"\n[DRY RUN] Would delete {to_delete} records with filing_date <= {cutoff_date}")
+        print(f"\n[DRY RUN] Would delete {to_delete} records filed in {format_quarters(quarters)}")
         print("Run with dry_run=False to execute.")
         return
 
     if to_delete == 0:
         print("No daily parsed records to clean up.")
     else:
-        print(f"\nDeleting records with filing_date <= {cutoff_date}...")
-        cleanup_parsed_tables(cutoff_date)
-    cleanup_tracking_table(cutoff_date)
+        print("\nDeleting records filed in loaded quarters...")
+        cleanup_parsed_tables(quarters)
+    cleanup_tracking_table(quarters)
     print("\nCleanup complete.")
 
 
