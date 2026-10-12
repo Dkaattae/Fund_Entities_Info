@@ -151,3 +151,11 @@ def test_generate_quarters_respects_quarter_cnt(frozen_now):
 
 def test_generate_quarters_empty_when_start_is_current(frozen_now):
     assert form_d_backfill.generate_quarters(2026, 3) == []
+
+
+def test_form_d_backfill_raises_when_sec_has_no_file(monkeypatch):
+    # A missing quarter must fail the flow, not be skipped silently.
+    monkeypatch.setattr(form_d_backfill, "resolve_url", lambda year, quarter: None)
+    monkeypatch.setattr(form_d_backfill.dlt, "pipeline", lambda **kwargs: None)
+    with pytest.raises(RuntimeError, match="2025Q1 not found"):
+        form_d_backfill.backfill(2025, 1, quarter_cnt=1)

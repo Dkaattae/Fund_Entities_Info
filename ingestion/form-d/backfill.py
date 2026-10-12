@@ -150,20 +150,23 @@ def backfill(start_year, start_quarter, quarter_cnt=None):
     for (year, quarter) in generate_quarters(start_year=start_year, 
                 start_quarter=start_quarter, quarter_cnt=quarter_cnt):
         url = resolve_url(year, quarter)
+        # Fail loudly: a silently skipped quarter hides an SEC path change
+        # (2026Q2 was missed for months that way) and lets cleanup_daily
+        # run against a gap.
         if url is None:
-            print(f"Data of {year}-q{quarter} not found at any known SEC path")
-            continue
-        print(f"Loading {url}")
-        try:
-            info = pipeline.run(
-                form_d_source(url, year, quarter),
-                loader_file_format="parquet",
-                write_disposition="merge",
-                credentials=gcp_credentials
+            tried = ", ".join(t.format(year=year, quarter=quarter) for t in url_templates)
+            raise RuntimeError(
+                f"Form D data set for {year}Q{quarter} not found at any known SEC path "
+                f"(not published yet, or SEC moved it). Tried: {tried}"
             )
-            print(info)
-        except requests.exceptions.HTTPError as e:
-            print(f"Data of {year}-q{quarter} not found with error {e}")
+        print(f"Loading {url}")
+        info = pipeline.run(
+            form_d_source(url, year, quarter),
+            loader_file_format="parquet",
+            write_disposition="merge",
+            credentials=gcp_credentials
+        )
+        print(info)
 
 
 if __name__ == "__main__":
