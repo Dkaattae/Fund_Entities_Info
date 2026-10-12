@@ -47,7 +47,7 @@ Scheduled jobs (GitHub Actions — the current source of truth):
 | `state-ria-daily.yml` | `0 6 * * *` | State-adviser snapshot ingest + dbt |
 | `form-d-daily.yml` | `0 7 * * *` | Form D daily index crawl + XML parse + dbt |
 | `era-monthly.yml` | `0 6 5-31 * *` | ERA monthly ZIP (fires daily in window; in-flow guard skips once the month is loaded) |
-| `form-d-quarterly.yml` | `0 8 4-31 1,4,7,10 *` | Form D bulk quarter + crawler cleanup + dbt (fires daily in window; guard skips once loaded) |
+| `form-d-quarterly.yml` | `0 8 10-31 1,4,7,10 *` | Form D bulk quarter + crawler cleanup + dbt (fires daily in window; guard skips once loaded) |
 | `broker-dealer-monthly.yml` | `0 9 5-31 * *` | Broker-dealer monthly file → raw table → dbt master rebuild (guard skips the load once the month is in raw) |
 | `gleif-monthly.yml` | `0 5 2-8 * *` | GLEIF LEI golden copy refresh + LEI match map rebuild (fires daily in window, before era-monthly; guard skips once loaded) |
 

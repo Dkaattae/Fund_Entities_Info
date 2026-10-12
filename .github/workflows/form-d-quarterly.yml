@@ -2,7 +2,7 @@ name: Form D Quarterly
 
 on:
   schedule:
-    - cron: "0 8 4-31 1,4,7,10 *"  # daily from 4th to end of Jan/Apr/Jul/Oct 08:00 UTC; flow self-skips once loaded
+    - cron: "0 8 10-31 1,4,7,10 *"  # daily from 10th to end of Jan/Apr/Jul/Oct 08:00 UTC; flow self-skips once loaded. Starts on the 10th because SEC can publish a quarter a few days into the month and backfill fails on a missing file.
   workflow_dispatch:
 
 jobs:
