@@ -87,10 +87,13 @@ def form_d_source(url: str, year: int, quarter: int):
     response.raise_for_status()
     zip_file = zipfile.ZipFile(io.BytesIO(response.content))
     # print(zip_file.namelist())
-    # 3. Loop through your tables and yield them as resources
-    for tsv_name, cfg in TSV_TABLES.items():
-        # We define a generator function for EACH tsv file
-        def get_rows(name=tsv_name, table_cfg=cfg):
+    # 3. Bind the per-file tsv name via a factory call argument, not a
+    #    default parameter: dlt turns a resource function's parameters into
+    #    config-spec fields, and a dict default (the old `table_cfg=cfg`)
+    #    fails Python 3.11's dataclass mutable-default check. Same fix as
+    #    era_ingestion.py.
+    def make_get_rows(name):
+        def get_rows():
             filename = f"{year}Q{quarter}_d/{name}"
             # print(f"Processing {filename} for table {table_cfg['table']}")
             with zip_file.open(filename) as f:
@@ -116,10 +119,13 @@ def form_d_source(url: str, year: int, quarter: int):
 
                 # Convert to records
                 yield df.to_dict(orient='records')
+        return get_rows
 
-        # 4. Yield the resource with the "Smart Hints" (the shield)
+    # 4. Loop through your tables and yield them as resources with the
+    #    "Smart Hints" (the shield)
+    for tsv_name, cfg in TSV_TABLES.items():
         yield dlt.resource(
-            get_rows, # This calls the generator we just defined
+            make_get_rows(tsv_name),
             name=cfg["table"],
             primary_key=cfg["primary_key"],
             write_disposition="merge",
