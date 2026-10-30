@@ -27,6 +27,13 @@ def aum_bucket(aum) -> str:
     return "$100M+"
 
 
+def text(val) -> str:
+    """Stringify a possibly-missing BigQuery value (None / NaN / pd.NA -> "")."""
+    if val is None or pd.isna(val):
+        return ""
+    return str(val).strip()
+
+
 def fmt_aum(val) -> str:
     if pd.isna(val) or val is None:
         return "—"
@@ -85,6 +92,10 @@ def load_state_rias() -> pd.DataFrame:
     df["aum_discretionary"] = pd.to_numeric(df["aum_discretionary"], errors="coerce")
     for col in ["total_employees", "state_registration_count", "era_registration_count", "total_jurisdiction_count"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    # BQ returns missing strings as None / pd.NA, which breaks truthiness checks
+    str_cols = ["firm_name", "main_street1", "main_street2", "main_city", "main_state",
+                "main_postal_code", "main_phone", "websites", "status"]
+    df[str_cols] = df[str_cols].astype(object).where(df[str_cols].notna(), "")
     df["aum_bucket"] = df["aum_total"].apply(aum_bucket)
     return df
 
@@ -195,7 +206,7 @@ if selected_rows:
     col1.metric("AUM (Total)",         fmt_aum(row.get("aum_total")))
     col2.metric("AUM (Discretionary)", fmt_aum(row.get("aum_discretionary")))
     col3.metric("Total Employees",     str(int(row["total_employees"])) if pd.notna(row.get("total_employees")) else "—")
-    col4.metric("Status",              row.get("status") or "—")
+    col4.metric("Status",              text(row.get("status")) or "—")
 
     col1b, col2b, col3b = st.columns(3)
     col1b.metric("First Registered",    str(row["first_registration_date"].date()) if pd.notna(row.get("first_registration_date")) else "—")
@@ -203,19 +214,19 @@ if selected_rows:
     col3b.metric("State Registrations", str(int(row["state_registration_count"])) if pd.notna(row.get("state_registration_count")) else "—")
 
     # Address / contact
-    street = " ".join(filter(None, [row.get("main_street1"), row.get("main_street2")]))
+    street = " ".join(filter(None, [text(row.get("main_street1")), text(row.get("main_street2"))]))
     city_state_zip = ", ".join(filter(None, [
-        row.get("main_city"),
-        row.get("main_state"),
-        row.get("main_postal_code"),
+        text(row.get("main_city")),
+        text(row.get("main_state")),
+        text(row.get("main_postal_code")),
     ]))
     address_parts = [p for p in [street, city_state_zip] if p]
     address_str = "  \n".join(address_parts) if address_parts else "—"
 
     col_addr, col_phone, col_web = st.columns(3)
     col_addr.markdown(f"**Address**  \n{address_str}")
-    col_phone.markdown(f"**Phone**  \n{row.get('main_phone') or '—'}")
-    websites_raw = row.get("websites") or ""
+    col_phone.markdown(f"**Phone**  \n{text(row.get('main_phone')) or '—'}")
+    websites_raw = text(row.get("websites"))
     if websites_raw:
         links = [f"[{w.strip()}]({w.strip() if w.strip().startswith('http') else 'https://' + w.strip()})"
                  for w in websites_raw.split(";") if w.strip()]
