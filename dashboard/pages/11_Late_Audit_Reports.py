@@ -145,15 +145,21 @@ if selected_rows:
     st.subheader(row["fund_name"] or "—")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Adviser", row.get("business_name") or row.get("legal_name") or "—")
+    # Adviser names are long; st.metric's large font truncates them, so
+    # render label + value as wrapping text instead.
+    c1.caption("Adviser")
+    c1.markdown(f"**{row.get('business_name') or row.get('legal_name') or '—'}**")
     c2.metric("Status", STATUS_LABELS.get(row["audit_status"], row["audit_status"]))
     c3.metric("Deadline", str(row.get("distribution_deadline")))
     c4.metric("Days overdue",
               int(row["days_overdue"]) if pd.notna(row["days_overdue"]) else "—")
 
+    # "$" must be escaped: a pair of "$" in st.markdown renders as LaTeX.
+    gav = fmt_money(row.get("gross_asset_value")).replace("$", r"\$")
+    aum = fmt_money(row.get("assets_under_management")).replace("$", r"\$")
     st.markdown(
-        f"**Fund GAV:** {fmt_money(row.get('gross_asset_value'))} · "
-        f"**Adviser AUM:** {fmt_money(row.get('assets_under_management'))} · "
+        f"**Fund GAV:** {gav} · "
+        f"**Adviser AUM:** {aum} · "
         f"**FYE:** {row.get('fiscal_year_end') or '—'} "
         f"(reporting {row.get('reporting_fye_date')})  \n"
         f"**Opinion on filing:** {row.get('audit_opinion') or '—'} · "
