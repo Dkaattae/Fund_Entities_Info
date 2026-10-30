@@ -286,10 +286,12 @@ for tab, (label, ptype) in zip(tabs, PROVIDER_TYPES.items()):
         id_cols = REGISTRY_ID_COLS[ptype]
 
         if id_cols:
-            # Split: has a registry ID (canonical_id is PCAOB:/SEC:/LEI:)
-            # vs no registry ID (canonical_id is NAME:...)
-            has_id = df[~df["canonical_id"].str.startswith("NAME:", na=False)].copy()
-            no_id  = df[ df["canonical_id"].str.startswith("NAME:", na=False)].copy()
+            # Split on the validated registry number columns themselves —
+            # canonical_id is now an opaque registry sp_ id for every type,
+            # so its prefix no longer says whether a registry number exists.
+            id_mask = df[[c for c, _ in id_cols]].notna().any(axis=1)
+            has_id = df[id_mask].copy()
+            no_id  = df[~id_mask].copy()
 
             label_has, label_no = SECTION_LABELS[ptype]
 
